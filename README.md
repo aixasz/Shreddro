@@ -21,6 +21,30 @@ bank, extend the templates in
 and add an anonymized OCR dump as a test fixture (see
 [docs/SLIP-SAMPLES.md](docs/SLIP-SAMPLES.md)).
 
+## Install (no Play Store needed)
+
+1. On your Android phone (Android 10+), open the
+   [**latest release**](https://github.com/aixasz/Shreddro/releases/latest)
+   and download the APK that matches your device:
+   - `app-arm64-v8a-release.apk` — most phones from ~2017 onward (try this first)
+   - `app-armeabi-v7a-release.apk` — older 32-bit devices
+   - `app-universal-release.apk` — works everywhere (larger download)
+2. Tap the downloaded file. When Android asks, allow your browser/file manager
+   to **install unknown apps** (Settings → Apps → Special app access → Install
+   unknown apps) — this prompt appears once per installing app.
+3. Confirm the install. If Play Protect shows a warning (normal for apps
+   outside the Play Store), choose **Install anyway** — you can verify what
+   you're installing because the entire source code is this repository, and
+   every APK is built and signed by the public
+   [GitHub Actions workflow](.github/workflows/android.yml).
+4. Open Shreddro, grant photo access, and tap **Scan Gallery Now**. Cloud sync
+   (Google Sheets / Excel) is optional — the app is fully functional offline.
+
+**Updating:** install a newer release APK over the old one; your ledger,
+archive, and settings are preserved. Tools like
+[Obtainium](https://github.com/ImranR98/Obtainium) can auto-update from this
+repo's releases if you prefer.
+
 ## Repository layout
 
 ```
