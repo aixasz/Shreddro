@@ -40,7 +40,18 @@ class SlipScanWorker(
                     app.storageCoordinator.loadCandidate(image)
                 }.getOrNull() ?: continue
                 when (app.pipeline.process(candidate).stage) {
-                    SlipStage.ARCHIVED -> archived++
+                    SlipStage.ARCHIVED -> {
+                        archived++
+                        // Purge needs a foreground Activity; park it for the
+                        // Home hero's "Sweep now".
+                        app.pendingPurge.add(
+                            listOf(
+                                com.shreddro.app.data.PendingPurge(
+                                    candidate.mediaId, candidate.displayName,
+                                ),
+                            ),
+                        )
+                    }
                     SlipStage.NEEDS_REVIEW -> review++
                     else -> Unit
                 }

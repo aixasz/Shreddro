@@ -56,6 +56,10 @@ class ShreddroApp : Application() {
         private set
     lateinit var reviewQueue: ReviewQueue
         private set
+    lateinit var pendingPurge: com.shreddro.app.data.PendingPurgeStore
+        private set
+    lateinit var csvSink: AndroidCsvSink
+        private set
     lateinit var spreadsheetGateways: Map<CloudProvider, SpreadsheetGateway>
         private set
     lateinit var binaryGateways: Map<CloudProvider, BinaryStorageGateway>
@@ -75,6 +79,8 @@ class ShreddroApp : Application() {
         syncQueue = SyncQueue(FileSyncQueueStore(this), FileArchiveReader())
         registry = ProcessedRegistry(FileProcessedStore(this))
         reviewQueue = ReviewQueue(FileReviewStore(this))
+        pendingPurge = com.shreddro.app.data.PendingPurgeStore(this)
+        csvSink = AndroidCsvSink(this)
 
         rebuildSyncGraph()
 
@@ -120,7 +126,7 @@ class ShreddroApp : Application() {
         )
 
         val repository = TransactionRepository(
-            ledger = AndroidCsvSink(this),
+            ledger = csvSink,
             spreadsheets = spreadsheetGateways,
             binaryStores = binaryGateways,
             syncStateProvider = syncStateProvider,
