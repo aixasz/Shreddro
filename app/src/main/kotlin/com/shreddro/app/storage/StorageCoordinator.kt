@@ -9,6 +9,7 @@ import android.content.IntentSender
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import com.shreddro.core.gateway.MediaVault
@@ -200,8 +201,14 @@ class StorageCoordinator(
     // ── Discovery helpers ────────────────────────────────────────────────────
 
     /**
-     * Enumerates gallery images added after [sinceEpochSeconds], restricted to
-     * camera/screenshot buckets — the surfaces where Thai bank slips land.
+     * Enumerates ALL gallery images added after [sinceEpochSeconds].
+     *
+     * No folder allow-list: Thai banking apps save slips to their own buckets
+     * (`Pictures/K PLUS`, `Pictures/Bualuang mBanking`, `Pictures/Krungthai
+     * NEXT`, `Pictures/PaoTang`, …) — a Camera/Screenshots-only filter missed
+     * every one of them on a real device. The on-device [SlipValidator] is the
+     * gate for non-slips, and the [ProcessedRegistry] remembers each verdict
+     * by hash, so scanning camera photos costs a one-time ML Kit pass.
      */
     suspend fun findCandidates(sinceEpochSeconds: Long): List<GalleryImage> =
         withContext(Dispatchers.IO) {
@@ -210,29 +217,46 @@ class StorageCoordinator(
                 MediaStore.Images.Media.DISPLAY_NAME,
                 MediaStore.Images.Media.DATE_ADDED,
                 MediaStore.Images.Media.BUCKET_DISPLAY_NAME,
+                MediaStore.Images.Media.MIME_TYPE,
+                MediaStore.Images.Media.SIZE,
             )
-            val selection = "${MediaStore.Images.Media.DATE_ADDED} > ?"
+            // Slips are JPEG/PNG (occasionally WebP/HEIC) screenshots of a few
+            // MB. Camera RAW and oversized files are never slips and reading
+            // them whole into memory OOMs the process, so filter in SQL.
+            val selection = "${MediaStore.Images.Media.DATE_ADDED} > ? AND " +
+                "${MediaStore.Images.Media.SIZE} <= ? AND " +
+                "${MediaStore.Images.Media.MIME_TYPE} IN (" +
+                SCAN_MIME_TYPES.joinToString(",") { "?" } + ")"
+            val args = arrayOf(sinceEpochSeconds.toString(), MAX_FILE_BYTES.toString()) + SCAN_MIME_TYPES
             val results = mutableListOf<GalleryImage>()
+            val perBucket = mutableMapOf<String, Int>()
             resolver.query(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 projection,
                 selection,
-                arrayOf(sinceEpochSeconds.toString()),
+                args,
                 "${MediaStore.Images.Media.DATE_ADDED} DESC",
             )?.use { cursor ->
                 val idCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
                 val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME)
+                val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
                 val bucketCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
                 while (cursor.moveToNext()) {
                     val bucket = cursor.getString(bucketCol) ?: ""
-                    if (SCAN_BUCKETS.none { bucket.contains(it, ignoreCase = true) }) continue
+                    perBucket[bucket] = (perBucket[bucket] ?: 0) + 1
                     val uri = ContentUris.withAppendedId(
                         MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                         cursor.getLong(idCol),
                     )
-                    results += GalleryImage(uri, cursor.getString(nameCol) ?: "slip.jpg")
+                    results += GalleryImage(
+                        uri = uri,
+                        displayName = cursor.getString(nameCol) ?: "slip.jpg",
+                        bucket = bucket,
+                        dateAddedEpochSeconds = cursor.getLong(dateCol),
+                    )
                 }
             }
+            Log.d(TAG, "findCandidates(since=$sinceEpochSeconds): ${results.size} image(s) $perBucket")
             results
         }
 
@@ -245,10 +269,19 @@ class StorageCoordinator(
         SlipCandidate(image.uri.toString(), image.displayName, sha, bytes)
     }
 
-    data class GalleryImage(val uri: Uri, val displayName: String)
+    data class GalleryImage(
+        val uri: Uri,
+        val displayName: String,
+        val bucket: String = "",
+        val dateAddedEpochSeconds: Long = 0L,
+    )
 
     companion object {
         const val ARCHIVE_DIR = "BankSlips_Archive"
-        private val SCAN_BUCKETS = listOf("Camera", "Screenshots", "Screenshot", "Download")
+        private const val TAG = "Shreddro.Storage"
+        private const val MAX_FILE_BYTES = 20L * 1024 * 1024
+        private val SCAN_MIME_TYPES = arrayOf(
+            "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif",
+        )
     }
 }

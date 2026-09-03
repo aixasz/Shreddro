@@ -1,7 +1,9 @@
 package com.shreddro.app.ui
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -10,6 +12,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.shreddro.app.data.AppSettings
 
 /**
@@ -20,6 +24,7 @@ import com.shreddro.app.data.AppSettings
 fun SettingsDialog(
     settings: AppSettings,
     onSaved: () -> Unit,
+    onRescanAll: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var scriptUrl by remember { mutableStateOf(settings.appsScriptUrl) }
@@ -48,6 +53,18 @@ fun SettingsDialog(
                         "disable that integration.",
                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                 )
+                HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                Text(
+                    "Gallery scan",
+                    style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    "Scans normally only look at photos newer than the last " +
+                        "scan. Rescan to revisit every photo; slips already " +
+                        "handled are skipped automatically.",
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                )
+                TextButton(onClick = onRescanAll) { Text("Rescan all photos") }
             }
         },
         confirmButton = {
