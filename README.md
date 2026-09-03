@@ -1,9 +1,25 @@
 # Shreddro 🧾🧹
 
-**Thai bank-slip sweeper.** Detects Thai banking transaction slips in your gallery, parses them with a Vision LLM, logs the data to *your own* Google Sheet or Excel Online workbook, archives the raw image into a private on-device vault, and purges the original from your camera roll (and therefore from Google/Apple Photos timelines) — with a single system consent dialog per batch.
+**Thai bank-slip sweeper.** Detects Thai banking transaction slips in your gallery, reads them with 100% on-device OCR (no AI API, no network), logs the data to *your own* Google Sheet or Excel Online workbook, archives the raw image into a private on-device vault, and purges the original from your camera roll (and therefore from Google/Apple Photos timelines) — with a single system consent dialog per batch.
 
 - 📄 **[Product Requirement Document](docs/PRD.md)**
 - 🏗️ **[Unified Architecture Blueprint](docs/ARCHITECTURE.md)**
+
+## Supported banks
+
+| Bank | Detection | Field extraction | Status |
+| --- | --- | --- | --- |
+| Kasikornbank (K+ / KBank) | ✅ | ✅ | **Verified against real slips** ([test fixtures](core/src/test/resources/ocr-dumps/)) |
+| Krungthai (KTB / NEXT) | ✅ | ✅ | **Verified against real slips** — transfers, bill payments, utilities |
+| Bangkok Bank (BBL) | ✅ | ✅ | **Verified against real slips** — transfers and merchant QR payments |
+| SCB, Krungsri, TTB, GSB | ✅ | ⚠️ | Bank recognized; extraction uses the generic Thai labels and is **untested** — [contribute a slip fixture!](core/src/test/kotlin/com/shreddro/core/RealOcrDumpTest.kt) |
+
+Slips that can't be read confidently are never guessed — they land in the in-app
+**Needs review** queue for one-tap retry or manual entry. To add or improve a
+bank, extend the templates in
+[ThaiSlipTemplateParser.kt](core/src/main/kotlin/com/shreddro/core/parse/ThaiSlipTemplateParser.kt)
+and add an anonymized OCR dump as a test fixture (see
+[docs/SLIP-SAMPLES.md](docs/SLIP-SAMPLES.md)).
 
 ## Repository layout
 
