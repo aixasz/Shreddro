@@ -29,8 +29,8 @@ jobs:
 
       # OAuth client ids are identifiers, not secrets (they're bound to the
       # package + signing cert), but Secrets keep them out of the repo.
-      # Gemini key / Apps Script config are runtime in-app settings — CI
-      # never needs them and no secret value ships inside the APK.
+      # Apps Script config is a runtime in-app setting — CI never needs it
+      # and no secret value ships inside the APK. Parsing is 100% on-device.
       - name: Assemble debug APK
         run: >
           ./gradlew :app:assembleDebug

@@ -34,7 +34,11 @@ class SyncDrainWorker(
             app.syncQueue.drain(app.spreadsheetGateways, app.binaryGateways)
         }.getOrElse { return Result.retry() }
 
-        return if (report.fullyDrained) Result.success() else Result.retry()
+        // Re-check AFTER draining: ops enqueued while this run was in flight
+        // would otherwise be orphaned (scheduleNow during a RUN is dropped by
+        // ExistingWorkPolicy.KEEP). retry() keeps the worker armed for them.
+        if (!report.fullyDrained) return Result.retry()
+        return if (app.syncQueue.pendingCount() > 0) Result.retry() else Result.success()
     }
 
     companion object {

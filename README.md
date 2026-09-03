@@ -16,13 +16,17 @@ docs/                 PRD + architecture blueprint
 
 ## Pipeline (one image)
 
-```
-gallery image ─► ML Kit gate (Thai text + bank QR) ─► Gemini Flash parse (strict JSON)
+```text
+gallery image ─► ML Kit gate (Thai text + bank QR)
+   ─► 100% on-device parse: Tesseract OCR (tha+eng) + QR decode + per-bank template rules
    ─► local CSV ledger (always) ─► fan-out: Apps Script → Google Sheet tab per bank
                                              Graph API  → Excel table per bank
                                              Drive / OneDrive ← raw image per bank
    ─► verified copy to BankSlips_Archive/ (+ .nomedia) ─► MediaStore.createDeleteRequest()
 ```
+
+Parsing is fully offline — no AI API, no key, and slip images never leave the
+device (cloud sync of the ledger/binary is optional and user-configured).
 
 Invariant: **an original is never deleted until the transaction row is durably logged locally and the archive copy is hash-verified.**
 

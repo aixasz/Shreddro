@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import com.shreddro.app.ai.GeminiSlipParser
 import com.shreddro.app.auth.AppAuthManager
 import com.shreddro.app.data.AndroidCsvSink
 import com.shreddro.app.data.AppSettings
@@ -18,6 +17,7 @@ import com.shreddro.app.net.DriveBinaryGateway
 import com.shreddro.app.net.GraphExcelGateway
 import com.shreddro.app.net.OneDriveBinaryGateway
 import com.shreddro.app.ocr.MlKitSlipValidator
+import com.shreddro.app.ocr.OfflineSlipParser
 import com.shreddro.app.storage.StorageCoordinator
 import com.shreddro.app.work.SyncDrainWorker
 import com.shreddro.core.gateway.BinaryStorageGateway
@@ -129,7 +129,9 @@ class ShreddroApp : Application() {
 
         pipeline = SlipPipeline(
             validator = MlKitSlipValidator(),
-            parser = GeminiSlipParser(settings.geminiApiKey, Clients.okHttp),
+            // 100% on-device parsing: Tesseract tha+eng + QR + template rules.
+            // No network, no API key; slip images never leave the device.
+            parser = OfflineSlipParser(this),
             repository = repository,
             vault = storageCoordinator,
             registry = registry,

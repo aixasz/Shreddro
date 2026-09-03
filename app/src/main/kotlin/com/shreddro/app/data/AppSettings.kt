@@ -10,8 +10,8 @@ import com.shreddro.app.BuildConfig
  *
  * These values deliberately do NOT ship inside the APK: this is a public
  * open-source app, and anything compiled into a released binary is extractable
- * by anyone. Each user brings their own Gemini API key and their own Apps
- * Script deployment ("your cloud, your keys" — no Shreddro servers).
+ * by anyone. Each user brings their own Apps Script deployment
+ * ("your cloud, your keys" — no Shreddro servers).
  *
  * The BuildConfig fields remain as a developer convenience: a value in
  * local.properties seeds local debug builds, but the in-app setting always
@@ -32,11 +32,6 @@ class AppSettings(context: Context) {
         )
     }
 
-    var geminiApiKey: String
-        get() = prefs.getString(KEY_GEMINI, null)?.takeIf { it.isNotBlank() }
-            ?: BuildConfig.GEMINI_API_KEY
-        set(value) = prefs.edit().putString(KEY_GEMINI, value.trim()).apply()
-
     var appsScriptUrl: String
         get() = prefs.getString(KEY_SCRIPT_URL, null)?.takeIf { it.isNotBlank() }
             ?: BuildConfig.APPS_SCRIPT_URL
@@ -52,7 +47,6 @@ class AppSettings(context: Context) {
         set(value) = prefs.edit().putString(KEY_MS_WORKBOOK, value.trim()).apply()
 
     private companion object {
-        const val KEY_GEMINI = "gemini_api_key"
         const val KEY_SCRIPT_URL = "apps_script_url"
         const val KEY_SCRIPT_SECRET = "apps_script_secret"
         const val KEY_MS_WORKBOOK = "ms_workbook_item_id"

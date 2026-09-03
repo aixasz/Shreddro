@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Shreddro launcher icon preview: teal rounded square + shredded-slip glyph -->
+  <rect x="0" y="0" width="512" height="512" rx="116" fill="#006A60"/>
+  <!-- Glyph drawn in the same 108-unit space as ic_launcher_foreground.xml,
+       scaled 512/108 to fill the tile -->
+  <g transform="scale(4.7407)" fill="#FFFFFF">
+    <path fill-rule="evenodd" d="M43,36 L65,36 A5,5 0 0 1 70,41 L70,47 A5,5 0 0 1 65,52 L43,52 A5,5 0 0 1 38,47 L38,41 A5,5 0 0 1 43,36 Z M44,40 L64,40 A2,2 0 0 1 66,42 L66,46 A2,2 0 0 1 64,48 L44,48 A2,2 0 0 1 42,46 L42,42 A2,2 0 0 1 44,40 Z"/>
+    <path d="M41,58 A2,2 0 0 1 45,58 L45,70 A2,2 0 0 1 41,70 Z"/>
+    <path d="M52,58 A2,2 0 0 1 56,58 L56,65 A2,2 0 0 1 52,65 Z"/>
+    <path d="M63,58 A2,2 0 0 1 67,58 L67,72 A2,2 0 0 1 63,72 Z"/>
+  </g>
+</svg>

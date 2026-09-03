@@ -48,6 +48,10 @@ class SlipScanWorker(
             prefs.edit().putLong("last_scan_epoch", System.currentTimeMillis() / 1000).apply()
             if (archived > 0) {
                 prefs.edit().putInt("pending_purge_count", archived).apply()
+            }
+            // Gate the drain on the queue itself, not on archive success —
+            // LOGGED_LOCAL outcomes enqueue sheet ops without an archive.
+            if (app.syncQueue.pendingCount() > 0) {
                 SyncDrainWorker.scheduleNow(app)
             }
             Notifications.postScanDigest(app, archived, review)

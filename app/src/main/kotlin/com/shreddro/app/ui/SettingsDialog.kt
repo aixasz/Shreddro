@@ -22,20 +22,15 @@ fun SettingsDialog(
     onSaved: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var gemini by remember { mutableStateOf(settings.geminiApiKey) }
     var scriptUrl by remember { mutableStateOf(settings.appsScriptUrl) }
     var scriptSecret by remember { mutableStateOf(settings.appsScriptSecret) }
     var workbookId by remember { mutableStateOf(settings.msWorkbookItemId) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Cloud & AI settings") },
+        title = { Text("Cloud sync settings") },
         text = {
             Column {
-                OutlinedTextField(
-                    gemini, { gemini = it },
-                    label = { Text("Gemini API key (AI slip reading)") },
-                )
                 OutlinedTextField(
                     scriptUrl, { scriptUrl = it },
                     label = { Text("Apps Script Web App URL (Google Sheet)") },
@@ -57,7 +52,6 @@ fun SettingsDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                settings.geminiApiKey = gemini
                 settings.appsScriptUrl = scriptUrl
                 settings.appsScriptSecret = scriptSecret
                 settings.msWorkbookItemId = workbookId

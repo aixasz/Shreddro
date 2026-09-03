@@ -95,7 +95,7 @@ class MainActivity : ComponentActivity() {
                     msAuthLauncher.launch(app.auth.authorizationIntent(CloudProvider.MICROSOFT))
                 }) { Text("Link Microsoft Account") }
 
-                Button(onClick = { showSettings = true }) { Text("Cloud & AI settings") }
+                Button(onClick = { showSettings = true }) { Text("Cloud sync settings") }
                 if (showSettings) {
                     SettingsDialog(
                         settings = app.settings,
@@ -112,6 +112,8 @@ class MainActivity : ComponentActivity() {
                 Switch(checked = localMode, onCheckedChange = {
                     localMode = it
                     app.localModeForced = it
+                    // Turning Local Mode OFF releases any ops queued earlier.
+                    if (!it) lifecycleScope.launch { drainIfPending() }
                 })
 
                 Button(onClick = {
@@ -149,22 +151,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Re-runs the full pipeline (fresh LLM attempt) for a parked image. */
+    /** Re-runs the full pipeline (fresh OCR attempt) for a parked image. */
     private suspend fun retryReview(item: ReviewItem): String {
         val candidate = loadReviewCandidate(item)
             ?: return "Original image no longer available for ${item.fileName}"
         val outcome = app.pipeline.retry(candidate)
         if (outcome.stage == SlipStage.ARCHIVED) app.pipeline.purge(listOf(outcome))
+        drainIfPending()
         return "Retry of ${item.fileName}: ${outcome.stage}"
     }
 
-    /** Records user-entered fields, skipping the LLM. */
+    /** Records user-entered fields, skipping OCR. */
     private suspend fun resolveReviewManually(item: ReviewItem, slip: TransactionSlip): String {
         val candidate = loadReviewCandidate(item)
             ?: return "Original image no longer available for ${item.fileName}"
         val outcome = app.pipeline.resolveManually(candidate, slip)
         if (outcome.stage == SlipStage.ARCHIVED) app.pipeline.purge(listOf(outcome))
+        drainIfPending()
         return "Saved ${item.fileName}: ${outcome.stage}"
+    }
+
+    /** Any path that can enqueue cloud ops must also arm the drain worker. */
+    private suspend fun drainIfPending() {
+        if (app.syncQueue.pendingCount() > 0) SyncDrainWorker.scheduleNow(this)
     }
 
     private suspend fun loadReviewCandidate(item: ReviewItem) = runCatching {
@@ -191,9 +200,7 @@ class MainActivity : ComponentActivity() {
             .edit().putLong("last_scan_epoch", System.currentTimeMillis() / 1000).apply()
 
         // Kick the drain worker for any cloud ops that deferred or failed.
-        if (app.syncQueue.pendingCount() > 0) {
-            SyncDrainWorker.scheduleNow(this)
-        }
+        drainIfPending()
 
         val archived = outcomes.count { it.stage == SlipStage.ARCHIVED }
         val skipped = outcomes.count { it.stage == SlipStage.SKIPPED }

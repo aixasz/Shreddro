@@ -1,0 +1,40 @@
+@ Bangkok Bank
+
+Transaction successful
+03 Sep 26, 10:05
+
+Amount
+
+115.00 tHe
+
+©   นาย นัทธพงศ์
+086-8-xxx871
+Bangkok Bank
+
+บริษัท ซีพีเอฟ เรสเทอรองท์ แอนด์
+ฟูดเซน จํากัด
+
+Service Code:BBLO1QR
+MERCHANTNO.1
+000002206489445
+
+REF#2
+4785833970FTKTOOOOOO
+
+Refernce no. (Optional)
+
+47858339
+
+๐
+๑=
+
+0.00 THB
+
+Bank reference no.
+375655
+
+Transaction reference            5 la
+2026090310054523002445308      [๒]
+
+Scan to verify
+

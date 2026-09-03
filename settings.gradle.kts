@@ -11,6 +11,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Tesseract4Android (offline Thai OCR) is distributed via JitPack.
+        maven("https://jitpack.io") {
+            content { includeGroupByRegex("com\\.github\\.adaptech-cz.*") }
+        }
     }
 }
 

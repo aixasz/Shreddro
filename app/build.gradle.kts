@@ -36,7 +36,6 @@ android {
         buildConfigField("String", "MS_OAUTH_CLIENT_ID", "\"${secret("shreddro.msClientId")}\"")
         buildConfigField("String", "APPS_SCRIPT_URL", "\"${secret("shreddro.appsScriptUrl")}\"")
         buildConfigField("String", "APPS_SCRIPT_SECRET", "\"${secret("shreddro.appsScriptSecret")}\"")
-        buildConfigField("String", "GEMINI_API_KEY", "\"${secret("shreddro.geminiApiKey")}\"")
     }
 
     buildFeatures {
@@ -102,6 +101,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1")
     // Task.await() bridge used by MlKitSlipValidator
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+    // Offline Thai OCR (Tesseract; tha+eng fast models in assets/tessdata)
+    implementation("com.github.adaptech-cz.Tesseract4Android:tesseract4android:4.7.0")
 
     testImplementation(kotlin("test"))
 }
