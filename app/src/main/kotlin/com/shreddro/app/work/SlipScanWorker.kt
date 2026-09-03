@@ -1,6 +1,7 @@
 package com.shreddro.app.work
 
 import android.content.Context
+import android.util.Log
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -29,17 +30,20 @@ class SlipScanWorker(
     override suspend fun doWork(): Result {
         val app = applicationContext as? ShreddroApp ?: return Result.failure()
         val prefs = app.getSharedPreferences("shreddro_settings", Context.MODE_PRIVATE)
-        val since = prefs.getLong("last_scan_epoch", 0L)
 
         return try {
-            val images = app.storageCoordinator.findCandidates(since)
+            val images = app.storageCoordinator.findCandidates(app.lastScanEpoch)
             var archived = 0
             var review = 0
             for (image in images) {
                 val candidate = runCatching {
                     app.storageCoordinator.loadCandidate(image)
-                }.getOrNull() ?: continue
-                when (app.pipeline.process(candidate).stage) {
+                }.onFailure { Log.w(TAG, "load failed ${image.displayName}", it) }
+                    .getOrNull() ?: continue
+                val outcome = app.pipeline.process(candidate)
+                Log.d(TAG, "${outcome.stage} ${image.bucket}/${image.displayName}" +
+                    (outcome.error?.let { " (${it.message})" } ?: ""))
+                when (outcome.stage) {
                     SlipStage.ARCHIVED -> {
                         archived++
                         // Purge needs a foreground Activity; park it for the
@@ -56,7 +60,7 @@ class SlipScanWorker(
                     else -> Unit
                 }
             }
-            prefs.edit().putLong("last_scan_epoch", System.currentTimeMillis() / 1000).apply()
+            app.advanceScanWatermark(images)
             if (archived > 0) {
                 prefs.edit().putInt("pending_purge_count", archived).apply()
             }
@@ -68,11 +72,14 @@ class SlipScanWorker(
             Notifications.postScanDigest(app, archived, review)
             Result.success()
         } catch (e: Exception) {
+            Log.e(TAG, "background scan failed", e)
             Result.retry()
         }
     }
 
     companion object {
+        private const val TAG = "Shreddro.Scan"
+
         fun schedule(context: Context) {
             val request = PeriodicWorkRequestBuilder<SlipScanWorker>(30, TimeUnit.MINUTES)
                 .setConstraints(

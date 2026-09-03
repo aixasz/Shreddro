@@ -1,6 +1,6 @@
 package com.shreddro.app.ocr
 
-import android.graphics.BitmapFactory
+import android.util.Log
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -36,39 +36,98 @@ class MlKitSlipValidator : SlipValidator {
     )
 
     override suspend fun looksLikeBankSlip(candidate: SlipCandidate): Boolean {
-        val bitmap = BitmapFactory.decodeByteArray(candidate.bytes, 0, candidate.bytes.size)
+        val bitmap = ImageDecoding.decodeScaled(candidate.bytes, MAX_SIDE_PX)
             ?: return false
-        val image = InputImage.fromBitmap(bitmap, 0)
+        try {
+            val image = InputImage.fromBitmap(bitmap, 0)
 
-        val text = runCatching { textRecognizer.process(image).await().text }.getOrDefault("")
-        val barcodes = runCatching { barcodeScanner.process(image).await() }.getOrDefault(emptyList())
+            val text = runCatching { textRecognizer.process(image).await().text }
+                .onFailure { Log.w(TAG, "text recognition failed", it) }
+                .getOrDefault("")
+            val barcodes = runCatching { barcodeScanner.process(image).await() }
+                .onFailure { Log.w(TAG, "barcode scan failed", it) }
+                .getOrDefault(emptyList())
 
-        var score = 0
-        if (containsThai(text)) score += 1
-        if (containsSlipKeywords(text)) score += 1
-        if (hasBankQr(barcodes)) score += 2
+            val thai = containsThai(text)
+            val keywords = matchedKeywords(text)
+            val brand = matchedBrand(text)
+            val qr = hasBankQr(barcodes)
 
-        return score >= 2
+            // ML Kit's bundled recognizer is Latin-only, so `thai` is almost
+            // never true on-device; a dense cluster of English slip keywords
+            // (Bualuang prints "Successful / Amount / THB / Fee / Reference")
+            // or a wallet/bank brand string printed in Latin letters
+            // (Paotang's "G-Wallet ID", KBank's "K PLUS") is treated as strong
+            // evidence on its own — Paotang slips carry no QR at all.
+            var score = 0
+            if (thai) score += 1
+            if (keywords.size >= STRONG_KEYWORD_HITS) score += 2
+            else if (keywords.isNotEmpty()) score += 1
+            if (brand != null) score += 2
+            if (qr) score += 2
+
+            Log.d(
+                TAG,
+                "${candidate.displayName}: score=$score thai=$thai keywords=$keywords " +
+                    "brand=$brand qr=$qr/${barcodes.size} textLen=${text.length} " +
+                    "${bitmap.width}x${bitmap.height}",
+            )
+            return score >= 2
+        } finally {
+            bitmap.recycle()
+        }
     }
 
     internal fun containsThai(text: String): Boolean =
         text.count { it in '฀'..'๿' } >= MIN_THAI_CHARS
 
-    internal fun containsSlipKeywords(text: String): Boolean {
+    internal fun containsSlipKeywords(text: String): Boolean = matchedKeywords(text).isNotEmpty()
+
+    internal fun matchedKeywords(text: String): List<String> {
         val lower = text.lowercase()
-        return KEYWORDS.any { lower.contains(it) }
+        return KEYWORDS.filter { lower.contains(it) }
+    }
+
+    internal fun matchedBrand(text: String): String? {
+        val lower = text.lowercase()
+        // Whole-word match: "samsung wallet" must not satisfy "g wallet".
+        return BRAND_MARKERS.firstOrNull { marker ->
+            Regex("(^|[^a-z])" + Regex.escape(marker) + "([^a-z]|$)").containsMatchIn(lower)
+        }
     }
 
     private fun hasBankQr(barcodes: List<Barcode>): Boolean =
         barcodes.any { code ->
             val raw = code.rawValue ?: return@any false
-            // EMVCo merchant/slip TLV payloads start with tag 00, length 02, "01".
-            raw.startsWith("000201") ||
-                BANK_QR_HOST_FRAGMENTS.any { raw.contains(it, ignoreCase = true) }
+            val hit = isBankQrPayload(raw)
+            Log.d(TAG, "  qr ${if (hit) "bank" else "other"}: ${raw.take(QR_LOG_PREFIX)}…")
+            hit
         }
 
+    /**
+     * Verified on-device (K PLUS, Bualuang mBanking, Krungthai NEXT): every
+     * Thai slip carries the Thai Bankers' Association *slip-verification* mini
+     * QR — a TLV string whose tag 00 wraps `0006000001` (API id 000001), a
+     * bank code and the transaction reference, e.g.
+     * `0041000600000101030040220<ref>5102TH9104<crc>`. That is NOT the EMVCo
+     * PromptPay payment QR (`000201…`), which is what the payer scans, so
+     * accept both plus bank deep-link hosts.
+     */
+    internal fun isBankQrPayload(raw: String): Boolean =
+        SLIP_VERIFY_QR.containsMatchIn(raw) ||
+            raw.startsWith("000201") ||
+            (raw.startsWith("00") && raw.contains("5102TH")) ||
+            BANK_QR_HOST_FRAGMENTS.any { raw.contains(it, ignoreCase = true) }
+
     private companion object {
+        const val TAG = "Shreddro.Validator"
         const val MIN_THAI_CHARS = 8
+        const val STRONG_KEYWORD_HITS = 3
+        const val QR_LOG_PREFIX = 24
+        /** tag 00 + len + API id "000001": TBA slip-verification QR. */
+        val SLIP_VERIFY_QR = Regex("^00\\d{2}0006000001")
+        /** Longest side after downsampling; slips are ≤ ~3200 px screenshots. */
+        const val MAX_SIDE_PX = 2048
         // Verified against real slips from K+ (KBank), Krungthai NEXT, and
         // Bangkok Bank: transfers, bill payments (จ่ายบิล), and merchant
         // payments (ชำระเงิน) label fields differently — KBank prints
@@ -81,6 +140,15 @@ class MlKitSlipValidator : SlipValidator {
             // English fallbacks printed by Thai banking apps
             "transfer", "successful", "amount", "baht", "thb",
             "promptpay", "reference", "fee", "merchant", "service code",
+        )
+        /**
+         * Latin-letter brand strings the Latin recognizer reads reliably off
+         * real slips. Lower-case; matched as substrings of the lower-cased
+         * text. "g-wallet" = Paotang (เป๋าตัง) government wallet receipts.
+         */
+        val BRAND_MARKERS = listOf(
+            "g-wallet", "g wallet", "paotang", "k plus", "kplus", "kasikorn",
+            "bualuang", "bangkok bank", "krungthai", "scb easy", "krungsri", "ttb",
         )
         val BANK_QR_HOST_FRAGMENTS = listOf(
             "kasikornbank", "kplus", "scb", "krungthai", "ktb",

@@ -55,6 +55,20 @@ class ProcessedRegistry(private val store: ProcessedStore) {
         }
     }
 
+    /**
+     * Forgets every SKIPPED verdict so a user-requested full rescan re-runs
+     * the gate with current detection rules. DONE and NEEDS_REVIEW entries are
+     * untouched — those guard against duplicate ledger rows.
+     */
+    suspend fun clearSkipped() {
+        mutex.withLock {
+            val entries = loadCache()
+            if (entries.values.removeAll { it == ProcessedStatus.SKIPPED }) {
+                store.persist(entries)
+            }
+        }
+    }
+
     private suspend fun loadCache(): MutableMap<String, ProcessedStatus> =
         cache ?: store.load().toMutableMap().also { cache = it }
 }

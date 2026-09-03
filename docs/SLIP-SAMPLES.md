@@ -33,3 +33,27 @@ file records the expected contract output and what each sample taught us.
 4. **Masked accounts** (`086-8-xxx871`, `xxx-x-x5474-x`) belong in
    sender/receiver strings as printed — they are the only disambiguator when
    two contacts share a display name.
+
+## Device session 2026-09-03 — S25 Ultra (Android 16), 201 gallery images
+
+Findings from the first on-device run, all folded into fixtures under
+`core/src/test/resources/ocr-dumps/`:
+
+- **Bank apps save slips to their own folders** (`Pictures/K PLUS`,
+  `Pictures/Bualuang mBanking`, `Pictures/Krungthai NEXT`, `Pictures/PaoTang`).
+  Discovery now scans every image bucket; the validator is the gate.
+- **Slip-verification QR** (Thai Bankers' Association): `00 41 [00 06 000001 |
+  01 03 <bank> | 02 20 <ref>] 51 02 TH 91 04 <crc>` on every K PLUS / Bualuang /
+  Krungthai slip. The reference is tag 02 of the nested TLV and beats OCR.
+- **K PLUS** (990 px wide over a watermark): amount line dissolves unless the
+  image is upscaled to ~2600 px and flattened to high-contrast grayscale
+  before Tesseract. Residual readings handled by the template: `13700 บาท`
+  (lost decimal point → 137.00), `2900um` (บาท read as `um`), labels
+  `จ้านวน:` / `เลขทีรายการ:`, months read as Latin (`29 a.m. 69`).
+- **Paotang G-Wallet** (`paotang-gwallet.txt`): no QR; `G-Wallet ID:` line;
+  whole-baht `จำนวนเงินที่ชำระ 30 บาท` (net of the ไทยช่วยไทย subsidy line);
+  32-hex reference often garbled with Thai glyphs → reference optional.
+- Camera RAW / oversized files are excluded in the MediaStore query
+  (MIME + 20 MB cap); decoding is always downsampled (an 87 MB `.RAF` OOM'd
+  the first run).
+
