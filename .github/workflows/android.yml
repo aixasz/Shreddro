@@ -1,21 +1,39 @@
-name: Android CI
+name: Release CI
+
+# Branch strategy (see CLAUDE.md — the project constitution):
+#   feature/* ──merge──► dev ──cut──► release/vX.Y.Z ──CI──► main
+#
+# CI runs ONLY when a release/vX.Y.Z branch is pushed. Day-to-day commits and
+# bug fixes are verified locally (unit tests + USB remote debugging) and do
+# not trigger builds. On success CI publishes the tagged GitHub Release with
+# signed APKs and merges the release branch into main — main only ever holds
+# released, CI-verified code.
 
 on:
   push:
-    branches: [main]
-    tags: ["v*"]
-  pull_request:
-    branches: [main]
+    branches: ["release/**"]
+  workflow_dispatch:
 
-# contents: write lets the release step attach APKs to tag releases.
 permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so the merge into main can push
+
+      - name: Derive version from branch name
+        id: ver
+        run: |
+          VERSION="${GITHUB_REF_NAME#release/}"
+          if ! echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Branch must be named release/vX.Y.Z (got $GITHUB_REF_NAME)"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v4
         with:
@@ -31,17 +49,16 @@ jobs:
       - name: Core unit tests
         run: ./gradlew :core:test
 
-      # OAuth client ids are identifiers, not secrets (they're bound to the
-      # package + signing cert), but Secrets keep them out of the repo.
-      # Apps Script config is a runtime in-app setting — CI never needs it
-      # and no secret value ships inside the APK. Parsing is 100% on-device.
+      # OAuth client ids are identifiers, not secrets (bound to package +
+      # signing cert), but Secrets keep them out of the repo. Apps Script
+      # config is a runtime in-app setting; parsing is 100% on-device.
       - name: Assemble debug APK
         run: >
           ./gradlew :app:assembleDebug
           -Pshreddro.googleClientId="${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}"
           -Pshreddro.msClientId="${{ secrets.MS_OAUTH_CLIENT_ID }}"
 
-      - name: Assemble release APK (unsigned unless keystore secret set)
+      - name: Assemble release APK (signed when keystore secret set)
         env:
           KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
         run: |
@@ -58,25 +75,27 @@ jobs:
             ./gradlew :app:assembleRelease "${CLIENT_PROPS[@]}"
           fi
 
-      - name: Upload debug APK
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: shreddro-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Upload release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: shreddro-release
+          name: shreddro-${{ steps.ver.outputs.version }}
           path: app/build/outputs/apk/release/*.apk
 
-      # Tag pushes (v1.0.0 …) publish the APKs as a GitHub Release —
-      # the simplest install channel for your device and early users.
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Create tagged GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/apk/debug/app-debug.apk
+          tag_name: ${{ steps.ver.outputs.version }}
+          files: app/build/outputs/apk/release/*.apk
           generate_release_notes: true
+
+      # The gate passed: fold this release into main. main therefore only
+      # ever contains code that shipped.
+      - name: Merge release branch into main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout main
+          git merge --no-ff "origin/$GITHUB_REF_NAME" \
+            -m "Merge $GITHUB_REF_NAME into main (CI-verified release ${{ steps.ver.outputs.version }})"
+          git push origin main
