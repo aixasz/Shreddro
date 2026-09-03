@@ -12,6 +12,7 @@
 | Kasikornbank (K+ / KBank) | ✅ | ✅ | **Verified against real slips** ([test fixtures](core/src/test/resources/ocr-dumps/)) |
 | Krungthai (KTB / NEXT) | ✅ | ✅ | **Verified against real slips** — transfers, bill payments, utilities |
 | Bangkok Bank (BBL) | ✅ | ✅ | **Verified against real slips** — transfers and merchant QR payments |
+| Paotang (เป๋าตัง) G-Wallet receipts | ✅ | ✅ | **Verified against real slips** — ไทยช่วยไทย co-pay receipts; whole-baht amounts, reference optional when OCR garbles the hex code |
 | SCB, Krungsri, TTB, GSB | ✅ | ⚠️ | Bank recognized; extraction uses the generic Thai labels and is **untested** — [contribute a slip fixture!](core/src/test/kotlin/com/shreddro/core/RealOcrDumpTest.kt) |
 
 Slips that can't be read confidently are never guessed — they land in the in-app

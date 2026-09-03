@@ -98,7 +98,10 @@ class SlipPipeline(
     suspend fun retry(candidate: SlipCandidate): PipelineOutcome {
         registry.clearForRetry(candidate.sha256)
         val outcome = process(candidate)
-        if (outcome.stage == SlipStage.ARCHIVED || outcome.stage == SlipStage.LOGGED_LOCAL) {
+        // Anything but "still unreadable" resolves the review item: logged,
+        // re-gated as a non-slip, or already concluded under another verdict
+        // (e.g. SKIPPED on an earlier retry) — none of those may linger here.
+        if (outcome.stage != SlipStage.NEEDS_REVIEW && outcome.stage != SlipStage.FAILED) {
             reviewQueue?.remove(candidate.sha256)
         }
         return outcome

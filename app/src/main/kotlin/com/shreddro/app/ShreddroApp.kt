@@ -71,8 +71,30 @@ class ShreddroApp : Application() {
         get() = prefs.getBoolean("local_mode", false)
         set(value) = prefs.edit().putBoolean("local_mode", value).apply()
 
+    /** Gallery scan watermark: MediaStore DATE_ADDED (epoch seconds) of the newest image seen. */
+    var lastScanEpoch: Long
+        get() = prefs.getLong("last_scan_epoch", 0L)
+        private set(value) = prefs.edit().putLong("last_scan_epoch", value).apply()
+
+    /**
+     * Advances the watermark to the newest image actually enumerated — never
+     * to "now". Stamping "now" after an empty scan (permission not yet
+     * granted, MediaStore still indexing) would hide every older image from
+     * all future scans.
+     */
+    fun advanceScanWatermark(images: List<StorageCoordinator.GalleryImage>) {
+        val newest = images.maxOfOrNull { it.dateAddedEpochSeconds } ?: return
+        if (newest > lastScanEpoch) lastScanEpoch = newest
+    }
+
+    /** Forces the next scan to revisit the whole gallery (dedup registry still applies). */
+    fun resetScanWatermark() {
+        lastScanEpoch = 0L
+    }
+
     override fun onCreate() {
         super.onCreate()
+        migrateScanState()
         auth = AppAuthManager(this)
         settings = AppSettings(this)
         storageCoordinator = StorageCoordinator(this)
@@ -155,9 +177,30 @@ class ShreddroApp : Application() {
         )
     }
 
+    /**
+     * One-time fix-ups of persisted scan state across builds.
+     *
+     * Schema 2: earlier builds only scanned Camera/Screenshots buckets and
+     * stamped the watermark to "now" after every scan, so slips saved by
+     * banking apps (Pictures/K PLUS, …) that pre-date that stamp were never
+     * discoverable. Reset the watermark once so the first scan on this build
+     * covers them; the SHA-256 registry keeps already-handled images deduped.
+     */
+    private fun migrateScanState() {
+        if (prefs.getInt(KEY_SCAN_SCHEMA, 1) < SCAN_SCHEMA) {
+            resetScanWatermark()
+            prefs.edit().putInt(KEY_SCAN_SCHEMA, SCAN_SCHEMA).apply()
+        }
+    }
+
     private fun isOnline(): Boolean {
         val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
         return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    private companion object {
+        const val KEY_SCAN_SCHEMA = "scan_schema"
+        const val SCAN_SCHEMA = 2
     }
 }

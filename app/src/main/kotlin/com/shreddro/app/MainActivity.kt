@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -101,6 +102,7 @@ class MainActivity : ComponentActivity() {
                 var ledger by remember { mutableStateOf(emptyList<LedgerEntry>()) }
                 var localMode by remember { mutableStateOf(app.localModeForced) }
                 var showSettings by remember { mutableStateOf(false) }
+                var retryingAll by remember { mutableStateOf(false) }
 
                 LaunchedEffect(refreshTick) {
                     reviewItems = app.reviewQueue.list()
@@ -150,9 +152,18 @@ class MainActivity : ComponentActivity() {
 
                             Tab.REVIEW -> ReviewScreen(
                                 items = reviewItems,
+                                retrying = retryingAll,
                                 onRetry = { item ->
                                     lifecycleScope.launch {
                                         retryReview(item)
+                                        refreshTick++
+                                    }
+                                },
+                                onRetryAll = {
+                                    retryingAll = true
+                                    lifecycleScope.launch {
+                                        retryAllReviews(reviewItems)
+                                        retryingAll = false
                                         refreshTick++
                                     }
                                 },
@@ -181,14 +192,24 @@ class MainActivity : ComponentActivity() {
                                     oneDriveFolder = app.settings.oneDriveFolderUrl,
                                 ),
                                 onLinkGoogle = {
-                                    googleAuthLauncher.launch(
-                                        app.auth.authorizationIntent(CloudProvider.GOOGLE),
-                                    )
+                                    // A build without an OAuth client id (local
+                                    // debug builds) must not crash in AppAuth.
+                                    if (com.shreddro.app.auth.AuthConfig.googleClientId.isBlank()) {
+                                        notConfigured("Google")
+                                    } else {
+                                        googleAuthLauncher.launch(
+                                            app.auth.authorizationIntent(CloudProvider.GOOGLE),
+                                        )
+                                    }
                                 },
                                 onLinkMicrosoft = {
-                                    msAuthLauncher.launch(
-                                        app.auth.authorizationIntent(CloudProvider.MICROSOFT),
-                                    )
+                                    if (com.shreddro.app.auth.AuthConfig.msClientId.isBlank()) {
+                                        notConfigured("Microsoft")
+                                    } else {
+                                        msAuthLauncher.launch(
+                                            app.auth.authorizationIntent(CloudProvider.MICROSOFT),
+                                        )
+                                    }
                                 },
                                 onOpenSettings = { showSettings = true },
                                 onLocalModeChange = {
@@ -210,6 +231,21 @@ class MainActivity : ComponentActivity() {
                             app.rebuildSyncGraph()
                             refreshTick++
                         },
+                        onRescanAll = {
+                            showSettings = false
+                            app.resetScanWatermark()
+                            tab = Tab.HOME
+                            scanning = true
+                            lifecycleScope.launch {
+                                // Images the gate once rejected get a fresh
+                                // look (detection rules improve); logged and
+                                // parked ones stay deduped.
+                                app.registry.clearSkipped()
+                                summary = runScan()
+                                scanning = false
+                                refreshTick++
+                            }
+                        },
                         onDismiss = { showSettings = false },
                     )
                 }
@@ -219,33 +255,39 @@ class MainActivity : ComponentActivity() {
 
     /** Manual scan: discover -> pipeline each -> record archives for sweeping. */
     private suspend fun runScan(): ScanSummary {
-        val since = getSharedPreferences("shreddro_settings", MODE_PRIVATE)
-            .getLong("last_scan_epoch", 0L)
-        val images = coordinator.findCandidates(since)
+        val images = coordinator.findCandidates(app.lastScanEpoch)
 
-        val outcomes = mutableListOf<PipelineOutcome>()
+        // Keep only stage tallies + purge ids. Retaining every PipelineOutcome
+        // (each holding the candidate's full image bytes) until the end of the
+        // scan blew the heap on a 200-image gallery.
+        val stageCounts = mutableMapOf<SlipStage, Int>()
+        val archivedForPurge = mutableListOf<PendingPurge>()
         for (image in images) {
-            val candidate = runCatching { coordinator.loadCandidate(image) }.getOrNull() ?: continue
-            outcomes += app.pipeline.process(candidate)
+            val candidate = runCatching { coordinator.loadCandidate(image) }
+                .onFailure { Log.w(TAG, "load failed ${image.displayName}", it) }
+                .getOrNull() ?: continue
+            val outcome = app.pipeline.process(candidate)
+            Log.d(TAG, "${outcome.stage} ${image.bucket}/${image.displayName}" +
+                (outcome.error?.let { " (${it.message})" } ?: ""))
+            stageCounts[outcome.stage] = (stageCounts[outcome.stage] ?: 0) + 1
+            if (outcome.stage == SlipStage.ARCHIVED) {
+                archivedForPurge += PendingPurge(candidate.mediaId, candidate.displayName)
+            }
         }
 
-        app.pendingPurge.add(
-            outcomes.filter { it.stage == SlipStage.ARCHIVED }
-                .map { PendingPurge(it.candidate.mediaId, it.candidate.displayName) },
-        )
+        app.pendingPurge.add(archivedForPurge)
         val purged = sweepPending()
 
-        getSharedPreferences("shreddro_settings", MODE_PRIVATE)
-            .edit().putLong("last_scan_epoch", System.currentTimeMillis() / 1000).apply()
+        app.advanceScanWatermark(images)
         drainIfPending()
 
         return ScanSummary(
             scanned = images.size,
-            archived = outcomes.count { it.stage == SlipStage.ARCHIVED },
+            archived = stageCounts[SlipStage.ARCHIVED] ?: 0,
             purged = purged,
-            skipped = outcomes.count { it.stage == SlipStage.SKIPPED },
-            needsReview = outcomes.count { it.stage == SlipStage.NEEDS_REVIEW },
-            alreadyDone = outcomes.count { it.stage == SlipStage.ALREADY_PROCESSED },
+            skipped = stageCounts[SlipStage.SKIPPED] ?: 0,
+            needsReview = stageCounts[SlipStage.NEEDS_REVIEW] ?: 0,
+            alreadyDone = stageCounts[SlipStage.ALREADY_PROCESSED] ?: 0,
         )
     }
 
@@ -266,6 +308,29 @@ class MainActivity : ComponentActivity() {
             app.pendingPurge.add(listOf(PendingPurge(item.mediaId, item.fileName)))
             sweepPending()
         }
+        drainIfPending()
+    }
+
+    /**
+     * Retries every parked slip in one pass, then shows ONE purge consent
+     * dialog for everything that archived (per-item dialogs for 30+ slips
+     * would be hostile). Items that still fail simply stay in the queue.
+     */
+    private suspend fun retryAllReviews(items: List<ReviewItem>) {
+        val archived = mutableListOf<PendingPurge>()
+        for (item in items) {
+            val candidate = loadReviewCandidate(item) ?: continue
+            val outcome = runCatching { app.pipeline.retry(candidate) }
+                .onFailure { Log.w(TAG, "retry failed ${item.fileName}", it) }
+                .getOrNull() ?: continue
+            Log.d(TAG, "RETRY ${outcome.stage} ${item.fileName}" +
+                (outcome.error?.let { " (${it.message})" } ?: ""))
+            if (outcome.stage == SlipStage.ARCHIVED) {
+                archived += PendingPurge(item.mediaId, item.fileName)
+            }
+        }
+        app.pendingPurge.add(archived)
+        sweepPending()
         drainIfPending()
     }
 
@@ -303,6 +368,14 @@ class MainActivity : ComponentActivity() {
         )
     }.getOrNull()
 
+    private fun notConfigured(provider: String) {
+        android.widget.Toast.makeText(
+            this,
+            "$provider sign-in isn't configured in this build (no OAuth client id).",
+            android.widget.Toast.LENGTH_LONG,
+        ).show()
+    }
+
     private fun requestMediaPermissions() {
         val perms = when {
             Build.VERSION.SDK_INT >= 34 -> arrayOf(
@@ -317,5 +390,9 @@ class MainActivity : ComponentActivity() {
             else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
         mediaPermissionLauncher.launch(perms)
+    }
+
+    private companion object {
+        const val TAG = "Shreddro.Scan"
     }
 }
