@@ -23,6 +23,8 @@ import java.time.Instant
 class DriveBinaryGateway(
     private val auth: AppAuthManager,
     private val client: OkHttpClient,
+    /** Called with the root slips folder URL so the UI can deep-link to Drive. */
+    private val onFolderUrl: (String) -> Unit = {},
 ) : BinaryStorageGateway {
 
     override val provider = CloudProvider.GOOGLE
@@ -33,6 +35,7 @@ class DriveBinaryGateway(
     override suspend fun upload(bytes: ByteArray, fileName: String, bankKey: String) {
         val token = auth.freshAccessToken(CloudProvider.GOOGLE)
         val rootId = ensureFolder(token, ROOT_FOLDER, parentId = null)
+        onFolderUrl("https://drive.google.com/drive/folders/$rootId")
         val bankId = ensureFolder(token, bankKey, parentId = rootId)
 
         val metadata = """{"name":"${Instant.now().epochSecond}_$fileName","parents":["$bankId"]}"""

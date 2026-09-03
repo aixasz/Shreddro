@@ -43,6 +43,20 @@ interface GraphApi {
         @Body body: GraphRowsAddRequest,
     ): Response<Unit>
 
+    @GET("v1.0/me/drive/items/{itemId}")
+    suspend fun getItem(
+        @Header("Authorization") bearer: String,
+        @Path("itemId") itemId: String,
+        @retrofit2.http.Query("\$select") select: String = "webUrl",
+    ): GraphDriveItem
+
+    /** Path-addressed lookup (e.g. the OneDrive slips folder) for its webUrl. */
+    @GET
+    suspend fun getItemByUrl(
+        @Url fullUrl: String,
+        @Header("Authorization") bearer: String,
+    ): GraphDriveItem
+
     @GET("v1.0/me/drive/items/{itemId}/workbook/tables/{table}")
     suspend fun getTable(
         @Header("Authorization") bearer: String,
@@ -81,6 +95,7 @@ interface GraphApi {
     ): Response<Unit>
 }
 
+@Serializable data class GraphDriveItem(val webUrl: String? = null)
 @Serializable data class GraphRowsAddRequest(val values: List<List<JsonPrimitive>>, val index: Int? = null)
 @Serializable data class GraphAddWorksheetRequest(val name: String)
 @Serializable data class GraphRangeValuesRequest(val values: List<List<String>>)
@@ -91,15 +106,25 @@ class GraphExcelGateway(
     private val auth: AppAuthManager,
     /** Drive item id of the master .xlsx (user picks/creates it during onboarding). */
     private val workbookItemId: String,
+    /** Called with the workbook's webUrl so the UI can deep-link to Excel. */
+    private val onWorkbookUrl: (String) -> Unit = {},
 ) : SpreadsheetGateway {
 
     override val provider = CloudProvider.MICROSOFT
+    private var urlReported = false
 
     override suspend fun appendRow(slip: TransactionSlip) {
         val bearer = "Bearer ${auth.freshAccessToken(CloudProvider.MICROSOFT)}"
         val table = tableNameFor(slip.bankKey)
 
         ensureTable(bearer, table, slip.bankKey)
+        if (!urlReported) {
+            runCatching { api.getItem(bearer, workbookItemId).webUrl }
+                .getOrNull()?.takeIf { it.isNotBlank() }?.let {
+                    urlReported = true
+                    onWorkbookUrl(it)
+                }
+        }
 
         val row = GraphRowsAddRequest(
             values = listOf(
@@ -151,9 +176,12 @@ class GraphExcelGateway(
 class OneDriveBinaryGateway(
     private val api: GraphApi,
     private val auth: AppAuthManager,
+    /** Called with the slips folder's webUrl so the UI can deep-link to OneDrive. */
+    private val onFolderUrl: (String) -> Unit = {},
 ) : BinaryStorageGateway {
 
     override val provider = CloudProvider.MICROSOFT
+    private var urlReported = false
 
     override suspend fun upload(bytes: ByteArray, fileName: String, bankKey: String) {
         val bearer = "Bearer ${auth.freshAccessToken(CloudProvider.MICROSOFT)}"
@@ -162,5 +190,17 @@ class OneDriveBinaryGateway(
             "/Documents/Bank Slips/$bankKey/$stamped:/content"
         val resp = api.uploadSmallFile(url, bearer, bytes.toRequestBody("image/jpeg".toMediaType()))
         if (!resp.isSuccessful) throw HttpException(resp)
+
+        if (!urlReported) {
+            runCatching {
+                api.getItemByUrl(
+                    "https://graph.microsoft.com/v1.0/me/drive/root:/Documents/Bank Slips:?\$select=webUrl",
+                    bearer,
+                ).webUrl
+            }.getOrNull()?.takeIf { it.isNotBlank() }?.let {
+                urlReported = true
+                onFolderUrl(it)
+            }
+        }
     }
 }

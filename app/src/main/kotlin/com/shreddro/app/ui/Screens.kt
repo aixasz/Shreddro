@@ -434,15 +434,28 @@ fun LedgerScreen(entries: List<LedgerEntry>) {
 
 // ── account ──────────────────────────────────────────────────────────────────
 
+/** Deep-link targets learned from successful cloud syncs; blank = not yet synced. */
+data class CloudLinks(
+    val googleSheet: String = "",
+    val driveFolder: String = "",
+    val excelWorkbook: String = "",
+    val oneDriveFolder: String = "",
+) {
+    val any: Boolean get() = listOf(googleSheet, driveFolder, excelWorkbook, oneDriveFolder)
+        .any { it.isNotBlank() }
+}
+
 @Composable
 fun AccountScreen(
     googleLinked: Boolean,
     microsoftLinked: Boolean,
     localMode: Boolean,
+    cloudLinks: CloudLinks,
     onLinkGoogle: () -> Unit,
     onLinkMicrosoft: () -> Unit,
     onOpenSettings: () -> Unit,
     onLocalModeChange: (Boolean) -> Unit,
+    onOpenUrl: (String) -> Unit,
 ) {
     Column(
         Modifier
@@ -465,6 +478,19 @@ fun AccountScreen(
         }
         Button(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth().height(52.dp)) {
             Text("Cloud sync settings")
+        }
+
+        if (cloudLinks.any) {
+            Text(
+                "Your data in the cloud",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            CloudLinkRow("Ledger in Google Sheets", cloudLinks.googleSheet, onOpenUrl)
+            CloudLinkRow("Slip images in Google Drive", cloudLinks.driveFolder, onOpenUrl)
+            CloudLinkRow("Ledger in Excel Online", cloudLinks.excelWorkbook, onOpenUrl)
+            CloudLinkRow("Slip images in OneDrive", cloudLinks.oneDriveFolder, onOpenUrl)
         }
 
         Row(
@@ -491,6 +517,35 @@ fun AccountScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 10.dp),
         )
+    }
+}
+
+@Composable
+private fun CloudLinkRow(label: String, url: String, onOpenUrl: (String) -> Unit) {
+    if (url.isBlank()) return
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth(),
+        onClick = { onOpenUrl(url) },
+    ) {
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                "Open ↗",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 

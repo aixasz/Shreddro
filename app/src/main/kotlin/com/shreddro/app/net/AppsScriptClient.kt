@@ -43,12 +43,15 @@ data class AppsScriptResponse(
     val sheet: String? = null,
     val row: Int? = null,
     val error: String? = null,
+    @SerialName("spreadsheet_url") val spreadsheetUrl: String? = null,
 )
 
 class AppsScriptSheetGateway(
     private val api: AppsScriptApi,
     private val deploymentUrl: String,
     private val sharedSecret: String,
+    /** Called with the live spreadsheet URL so the UI can deep-link to it. */
+    private val onSheetUrl: (String) -> Unit = {},
 ) : SpreadsheetGateway {
 
     override val provider = CloudProvider.GOOGLE
@@ -69,5 +72,6 @@ class AppsScriptSheetGateway(
         check(response.status == "ok") {
             "Apps Script gateway error: ${response.error ?: response.status}"
         }
+        response.spreadsheetUrl?.takeIf { it.isNotBlank() }?.let(onSheetUrl)
     }
 }

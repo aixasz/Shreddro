@@ -46,7 +46,28 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_MS_WORKBOOK, null) ?: ""
         set(value) = prefs.edit().putString(KEY_MS_WORKBOOK, value.trim()).apply()
 
+    // Deep-link targets learned from successful syncs; blank until first sync.
+    var googleSheetUrl: String
+        get() = prefs.getString(KEY_SHEET_URL, null) ?: ""
+        set(value) = prefs.edit().putString(KEY_SHEET_URL, value.trim()).apply()
+
+    var googleDriveFolderUrl: String
+        get() = prefs.getString(KEY_DRIVE_URL, null) ?: ""
+        set(value) = prefs.edit().putString(KEY_DRIVE_URL, value.trim()).apply()
+
+    var excelWorkbookUrl: String
+        get() = prefs.getString(KEY_EXCEL_URL, null) ?: ""
+        set(value) = prefs.edit().putString(KEY_EXCEL_URL, value.trim()).apply()
+
+    var oneDriveFolderUrl: String
+        get() = prefs.getString(KEY_ONEDRIVE_URL, null) ?: ""
+        set(value) = prefs.edit().putString(KEY_ONEDRIVE_URL, value.trim()).apply()
+
     private companion object {
+        const val KEY_SHEET_URL = "google_sheet_url"
+        const val KEY_DRIVE_URL = "google_drive_folder_url"
+        const val KEY_EXCEL_URL = "excel_workbook_url"
+        const val KEY_ONEDRIVE_URL = "onedrive_folder_url"
         const val KEY_SCRIPT_URL = "apps_script_url"
         const val KEY_SCRIPT_SECRET = "apps_script_secret"
         const val KEY_MS_WORKBOOK = "ms_workbook_item_id"

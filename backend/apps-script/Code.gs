@@ -66,6 +66,8 @@ function doPost(e) {
       status: 'ok',
       sheet: sheetName,
       row: sheet.getLastRow(),
+      // Lets the app deep-link straight to the ledger (Sheets app or browser).
+      spreadsheet_url: ss.getUrl() + '#gid=' + sheet.getSheetId(),
     });
   } catch (err) {
     return jsonResponse_({ status: 'error', error: String(err && err.message || err) });

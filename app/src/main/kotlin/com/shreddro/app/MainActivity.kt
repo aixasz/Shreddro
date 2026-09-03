@@ -174,6 +174,12 @@ class MainActivity : ComponentActivity() {
                                 googleLinked = CloudProvider.GOOGLE in linked,
                                 microsoftLinked = CloudProvider.MICROSOFT in linked,
                                 localMode = localMode,
+                                cloudLinks = com.shreddro.app.ui.CloudLinks(
+                                    googleSheet = app.settings.googleSheetUrl,
+                                    driveFolder = app.settings.googleDriveFolderUrl,
+                                    excelWorkbook = app.settings.excelWorkbookUrl,
+                                    oneDriveFolder = app.settings.oneDriveFolderUrl,
+                                ),
                                 onLinkGoogle = {
                                     googleAuthLauncher.launch(
                                         app.auth.authorizationIntent(CloudProvider.GOOGLE),
@@ -190,6 +196,7 @@ class MainActivity : ComponentActivity() {
                                     app.localModeForced = it
                                     if (!it) lifecycleScope.launch { drainIfPending() }
                                 },
+                                onOpenUrl = ::openUrl,
                             )
                         }
                     }
@@ -276,6 +283,18 @@ class MainActivity : ComponentActivity() {
     /** Any path that can enqueue cloud ops must also arm the drain worker. */
     private suspend fun drainIfPending() {
         if (app.syncQueue.pendingCount() > 0) SyncDrainWorker.scheduleNow(this)
+    }
+
+    /**
+     * ACTION_VIEW deep-links into the matching app when installed (Sheets,
+     * Drive, Excel, OneDrive) and falls back to the browser otherwise.
+     */
+    private fun openUrl(url: String) {
+        runCatching {
+            startActivity(
+                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)),
+            )
+        }
     }
 
     private suspend fun loadReviewCandidate(item: ReviewItem) = runCatching {

@@ -110,19 +110,29 @@ class ShreddroApp : Application() {
                         Clients.appsScriptApi,
                         settings.appsScriptUrl,
                         settings.appsScriptSecret,
+                        onSheetUrl = { settings.googleSheetUrl = it },
                     ),
                 )
             }
             if (settings.msWorkbookItemId.isNotBlank()) {
                 put(
                     CloudProvider.MICROSOFT,
-                    GraphExcelGateway(Clients.graphApi, auth, settings.msWorkbookItemId),
+                    GraphExcelGateway(
+                        Clients.graphApi, auth, settings.msWorkbookItemId,
+                        onWorkbookUrl = { settings.excelWorkbookUrl = it },
+                    ),
                 )
             }
         }
         binaryGateways = mapOf(
-            CloudProvider.GOOGLE to DriveBinaryGateway(auth, Clients.okHttp),
-            CloudProvider.MICROSOFT to OneDriveBinaryGateway(Clients.graphApi, auth),
+            CloudProvider.GOOGLE to DriveBinaryGateway(
+                auth, Clients.okHttp,
+                onFolderUrl = { settings.googleDriveFolderUrl = it },
+            ),
+            CloudProvider.MICROSOFT to OneDriveBinaryGateway(
+                Clients.graphApi, auth,
+                onFolderUrl = { settings.oneDriveFolderUrl = it },
+            ),
         )
 
         val repository = TransactionRepository(
