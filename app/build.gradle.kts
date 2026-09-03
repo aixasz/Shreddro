@@ -64,6 +64,16 @@ android {
         }
     }
 
+    // Tesseract ships native libs per ABI; splits keep each install small.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = true
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
