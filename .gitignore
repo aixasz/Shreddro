@@ -1,0 +1,14 @@
+# Gradle
+.gradle/
+build/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Secrets — client ids / API keys live in local.properties (never committed)
+*.jks
+*.keystore
+design/shreddro-app-ui.html

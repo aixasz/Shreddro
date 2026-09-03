@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Network for LLM parsing + cloud sync -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Gallery read access, tiered by API level (scoped storage only) -->
+    <!-- API 33+ granular media permission -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- API 34+ partial photo access grant -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <!-- API 29-32 legacy read (maxSdkVersion caps it) -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!-- Batch-result notifications (API 33+ runtime prompt) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- NOTE: no WRITE_EXTERNAL_STORAGE, no MANAGE_EXTERNAL_STORAGE.
+         Deletion goes through MediaStore.createDeleteRequest() user consent. -->
+
+    <application
+        android:name=".ShreddroApp"
+        android:allowBackup="false"
+        android:icon="@android:drawable/sym_def_app_icon"
+        android:label="@string/app_name"
+        android:requestLegacyExternalStorage="false"
+        android:theme="@style/Theme.Shreddro"
+        tools:targetApi="35">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- AppAuth redirect capture for Google OIDC (custom scheme from
+             manifestPlaceholders: com.shreddro.app:/oauth2redirect) -->
+        <activity
+            android:name="net.openid.appauth.RedirectUriReceiverActivity"
+            android:exported="true"
+            tools:node="replace">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${appAuthRedirectScheme}" />
+            </intent-filter>
+            <!-- Microsoft identity platform redirect (msauth scheme).
+                 Replace the host signature hash with your release keystore's
+                 base64 SHA-1 as registered in the Entra app portal. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="com.shreddro.app"
+                    android:path="/mdiqEPddjqIocm44yXlmGKnFWqU="
+                    android:scheme="msauth" />
+            </intent-filter>
+        </activity>
+
+        <!-- WorkManager default initializer is used; SlipScanWorker scheduled at runtime -->
+    </application>
+</manifest>

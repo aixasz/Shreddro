@@ -1,0 +1,14 @@
+{
+  "artboards": [
+    { "file": "Onboarding.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "1 · Onboarding" },
+    { "file": "Main.dc.html", "x": 480, "y": 0, "w": 390, "h": 844, "title": "2 · Home" },
+    { "file": "ScanResult.dc.html", "x": 960, "y": 0, "w": 390, "h": 844, "title": "3 · Scan results" },
+    { "file": "Review.dc.html", "x": 1440, "y": 0, "w": 390, "h": 844, "title": "4 · Needs review" },
+    { "file": "DenseAlt.dc.html", "x": 0, "y": 1000, "w": 390, "h": 844, "title": "Alt direction · Dense ledger-first (wireframe)" }
+  ],
+  "annotations": [
+    { "id": "direction-note", "x": 480, "y": -150, "w": 420, "text": "Direction: Material 3 Expressive — teal seed, tonal surfaces, big rounded shapes, one hero action per screen.\nAlt below: dense, ledger-first utility (wireframe) if you prefer a power-user tool feel." },
+    { "id": "flow-note", "x": 0, "y": 900, "w": 380, "text": "Core loop: Scan → results summary → one batched Sweep (the Android consent dialog opens after the button). Amounts and merchants are sample data from the real test slips." }
+  ],
+  "launch": { "view": "canvas" }
+}
