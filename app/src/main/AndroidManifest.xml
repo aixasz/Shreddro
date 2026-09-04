@@ -22,6 +22,29 @@
     <!-- NOTE: no WRITE_EXTERNAL_STORAGE, no MANAGE_EXTERNAL_STORAGE.
          Deletion goes through MediaStore.createDeleteRequest() user consent. -->
 
+    <!-- Package visibility (API 30+): lets the Account screen check whether
+         the native Sheets / Drive / Excel / OneDrive apps are installed before
+         deep-linking; otherwise links open in the browser. -->
+    <queries>
+        <package android:name="com.google.android.apps.docs.editors.sheets" />
+        <package android:name="com.google.android.apps.docs" />
+        <package android:name="com.microsoft.office.excel" />
+        <package android:name="com.microsoft.skydrive" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="ms-excel" />
+        </intent>
+        <!-- Viewers for the local .xlsx ledger (MainActivity.openLocalLedger). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+        </intent>
+    </queries>
+
     <application
         android:name=".ShreddroApp"
         android:allowBackup="false"
@@ -65,6 +88,19 @@
                     android:scheme="msauth" />
             </intent-filter>
         </activity>
+
+        <!-- Shares the local Excel ledger (Documents/Shreddro Transactions.xlsx,
+             written when no cloud account is linked) with a viewer app via a
+             content:// URI; roots in res/xml/file_paths.xml. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <!-- WorkManager default initializer is used; SlipScanWorker scheduled at runtime -->
     </application>

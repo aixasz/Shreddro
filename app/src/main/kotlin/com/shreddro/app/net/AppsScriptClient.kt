@@ -1,6 +1,8 @@
 package com.shreddro.app.net
 
 import com.shreddro.core.gateway.SpreadsheetGateway
+import com.shreddro.core.ledger.CloudLedger
+import com.shreddro.core.ledger.LedgerRecord
 import com.shreddro.core.model.CloudProvider
 import com.shreddro.core.model.TransactionSlip
 import kotlinx.serialization.SerialName
@@ -33,6 +35,8 @@ data class AppsScriptPayload(
     @SerialName("sender") val sender: String,
     @SerialName("receiver") val receiver: String,
     @SerialName("reference_id") val referenceId: String,
+    /** Cloud file name of the slip image (Drive), so the row maps to it. */
+    @SerialName("image_file") val imageFile: String = "",
     /** Auth travels in the body — Apps Script cannot read custom headers. */
     @SerialName("secret") val secret: String,
 )
@@ -52,11 +56,16 @@ class AppsScriptSheetGateway(
     private val sharedSecret: String,
     /** Called with the live spreadsheet URL so the UI can deep-link to it. */
     private val onSheetUrl: (String) -> Unit = {},
-) : SpreadsheetGateway {
+) : SpreadsheetGateway, CloudLedger {
 
     override val provider = CloudProvider.GOOGLE
 
-    override suspend fun appendRow(slip: TransactionSlip) {
+    /** The script offers no listing endpoint, so reconciliation cannot know what it holds. */
+    override suspend fun existingKeys(): Set<String>? = null
+
+    override suspend fun append(record: LedgerRecord) = appendRow(record.toSlip(), record.imageFile)
+
+    override suspend fun appendRow(slip: TransactionSlip, imageFileName: String) {
         val response = api.append(
             url = deploymentUrl,
             payload = AppsScriptPayload(
@@ -66,6 +75,7 @@ class AppsScriptSheetGateway(
                 sender = slip.sender,
                 receiver = slip.receiver,
                 referenceId = slip.referenceId,
+                imageFile = imageFileName,
                 secret = sharedSecret,
             ),
         )

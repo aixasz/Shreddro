@@ -94,7 +94,8 @@ class SyncQueue(
     ): Boolean = when (op.kind) {
         OpKind.SHEET_ROW -> {
             val gateway = spreadsheets[op.provider] ?: return false
-            gateway.appendRow(op.slip)
+            val imageName = binaryStores[op.provider]?.cloudFileName(op.fileName) ?: op.fileName
+            gateway.appendRow(op.slip, imageName)
             true
         }
         OpKind.BINARY -> {

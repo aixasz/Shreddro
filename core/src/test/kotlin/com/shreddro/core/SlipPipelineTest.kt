@@ -41,7 +41,7 @@ class SlipPipelineTest {
 
     private class CountingLedger : LedgerSink {
         var appends = 0
-        override suspend fun append(slip: TransactionSlip, sourceMediaId: String) { appends++ }
+        override suspend fun append(slip: TransactionSlip, sourceMediaId: String, imageFileName: String) { appends++ }
     }
 
     private class CountingParser(val result: TransactionSlip) : SlipParser {

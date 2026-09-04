@@ -46,7 +46,7 @@ class TransactionRepository(
         archivePath: String? = null,
     ): RecordResult {
         val local = try {
-            ledger.append(slip, candidate.mediaId)
+            ledger.append(slip, candidate.mediaId, candidate.displayName)
             SyncOutcome.Success(CloudProvider.LOCAL_CSV)
         } catch (e: Exception) {
             SyncOutcome.Failure(CloudProvider.LOCAL_CSV, e)
@@ -81,9 +81,13 @@ class TransactionRepository(
         var firstError: Exception? = null
         val failedOps = mutableListOf<PendingOp>()
 
+        // The row cites the image by its CLOUD name (the binary adapter may
+        // transcode/rename), so rows and files stay mappable either way.
+        val imageName = binaryStores[provider]?.cloudFileName(candidate.displayName)
+            ?: candidate.displayName
         spreadsheets[provider]?.let { gateway ->
             try {
-                gateway.appendRow(slip)
+                gateway.appendRow(slip, imageName)
             } catch (e: Exception) {
                 firstError = e
                 failedOps += op(provider, OpKind.SHEET_ROW, slip, candidate, null)

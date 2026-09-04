@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark window/launch background so the first frame before Compose
+         draws is not a white flash in dark mode. -->
+    <style name="Theme.Shreddro" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#0F1513</item>
+    </style>
+</resources>

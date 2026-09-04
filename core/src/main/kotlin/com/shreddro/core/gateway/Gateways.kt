@@ -34,21 +34,39 @@ interface SlipParser {
 
 class SlipParseException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
-/** Appends one transaction row to a cloud spreadsheet engine, partitioned per bank. */
+/**
+ * Appends one transaction row to a cloud spreadsheet engine, partitioned per
+ * bank. [imageFileName] is the name the slip image carries in cloud storage
+ * (see [BinaryStorageGateway.cloudFileName]) so every row maps back to its
+ * image.
+ */
 interface SpreadsheetGateway {
     val provider: CloudProvider
-    suspend fun appendRow(slip: TransactionSlip)
+    suspend fun appendRow(slip: TransactionSlip, imageFileName: String)
 }
 
 /** Uploads the raw slip binary to cloud object storage under a per-bank folder. */
 interface BinaryStorageGateway {
     val provider: CloudProvider
     suspend fun upload(bytes: ByteArray, fileName: String, bankKey: String)
+
+    /**
+     * Name the image will have in cloud storage for a given original name.
+     * Deterministic and side-effect free so the spreadsheet row can cite it
+     * before (or without) the upload happening; adapters that transcode
+     * (e.g. PNG -> JPEG) override it.
+     */
+    fun cloudFileName(originalName: String): String = originalName
 }
 
-/** Durable local ledger (CSV in Phase 1). MUST be crash-safe and thread-safe. */
+/**
+ * Durable local ledger (CSV in Phase 1). MUST be crash-safe and thread-safe.
+ * [imageFileName] is the slip image's file name (the gallery display name)
+ * so local rows can be reconciled against cloud rows by image, exactly like
+ * [SpreadsheetGateway.appendRow].
+ */
 interface LedgerSink {
-    suspend fun append(slip: TransactionSlip, sourceMediaId: String)
+    suspend fun append(slip: TransactionSlip, sourceMediaId: String, imageFileName: String)
 }
 
 /**

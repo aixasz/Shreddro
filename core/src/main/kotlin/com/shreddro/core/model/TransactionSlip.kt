@@ -19,9 +19,13 @@ data class TransactionSlip(
     @SerialName("reference_id") val referenceId: String,
 ) {
     /** Sanitized bank name safe for sheet-tab titles, folder names and table names. */
-    val bankKey: String
-        get() = bankName.trim()
+    val bankKey: String get() = bankKeyOf(bankName)
+
+    companion object {
+        /** Same sanitizing as [bankKey], for callers that only hold a bank name (e.g. ledger rows). */
+        fun bankKeyOf(bankName: String): String = bankName.trim()
             .replace(Regex("[\\\\/\\[\\]*?:'\"<>|]"), "")
             .take(80)
             .ifBlank { "Unknown" }
+    }
 }
