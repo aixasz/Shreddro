@@ -102,9 +102,9 @@ class OfflineSweepStoryTest {
     }
 
     private class RecordingLedger : LedgerSink {
-        val rows = mutableListOf<Pair<TransactionSlip, String>>()
-        override suspend fun append(slip: TransactionSlip, sourceMediaId: String) {
-            rows += slip to sourceMediaId
+        val rows = mutableListOf<Triple<TransactionSlip, String, String>>()
+        override suspend fun append(slip: TransactionSlip, sourceMediaId: String, imageFileName: String) {
+            rows += Triple(slip, sourceMediaId, imageFileName)
         }
     }
 
@@ -114,7 +114,7 @@ class OfflineSweepStoryTest {
         val online: () -> Boolean,
     ) : SpreadsheetGateway {
         val rows = mutableListOf<TransactionSlip>()
-        override suspend fun appendRow(slip: TransactionSlip) {
+        override suspend fun appendRow(slip: TransactionSlip, imageFileName: String) {
             if (!online()) error("no connectivity")
             rows += slip
         }
@@ -193,6 +193,7 @@ class OfflineSweepStoryTest {
         assertEquals(1, ledger.rows.size)
         assertEquals(slip, ledger.rows.single().first)
         assertEquals(candidate.mediaId, ledger.rows.single().second)
+        assertEquals(candidate.displayName, ledger.rows.single().third)
 
         // (b) private archive copy created before recording.
         val archivePath = outcome.archivePath

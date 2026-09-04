@@ -31,7 +31,7 @@ class SyncQueueTest {
     private class FlakySheet(var failuresLeft: Int) : SpreadsheetGateway {
         override val provider = CloudProvider.GOOGLE
         var appended = 0
-        override suspend fun appendRow(slip: TransactionSlip) {
+        override suspend fun appendRow(slip: TransactionSlip, imageFileName: String) {
             if (failuresLeft-- > 0) error("boom")
             appended++
         }

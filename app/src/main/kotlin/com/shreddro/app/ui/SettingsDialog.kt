@@ -33,7 +33,6 @@ fun SettingsDialog(
 ) {
     var scriptUrl by remember { mutableStateOf(settings.appsScriptUrl) }
     var scriptSecret by remember { mutableStateOf(settings.appsScriptSecret) }
-    var workbookId by remember { mutableStateOf(settings.msWorkbookItemId) }
     var compress by remember { mutableStateOf(settings.compressUploads) }
 
     AlertDialog(
@@ -41,21 +40,24 @@ fun SettingsDialog(
         title = { Text("Cloud sync settings") },
         text = {
             Column {
+                Text(
+                    "Linked accounts get a \"Shreddro\" folder holding one " +
+                        "\"Shreddro Transactions\" Google Sheet or Excel workbook " +
+                        "(a row per slip, with a bank column) and a sub-folder per " +
+                        "bank for the slip images.",
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                )
                 OutlinedTextField(
                     scriptUrl, { scriptUrl = it },
-                    label = { Text("Apps Script Web App URL (Google Sheet)") },
+                    label = { Text("Apps Script URL (optional, legacy master sheet)") },
                 )
                 OutlinedTextField(
                     scriptSecret, { scriptSecret = it },
                     label = { Text("Apps Script shared secret") },
                 )
-                OutlinedTextField(
-                    workbookId, { workbookId = it },
-                    label = { Text("OneDrive workbook item id (Excel)") },
-                )
                 Text(
-                    "Stored encrypted on this device only. Leave blank to " +
-                        "disable that integration.",
+                    "Leave blank to write the Google Sheet directly. " +
+                        "Stored encrypted on this device only.",
                     style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                 )
                 Row(
@@ -95,7 +97,6 @@ fun SettingsDialog(
             TextButton(onClick = {
                 settings.appsScriptUrl = scriptUrl
                 settings.appsScriptSecret = scriptSecret
-                settings.msWorkbookItemId = workbookId
                 settings.compressUploads = compress
                 onSaved()
             }) { Text("Save") }

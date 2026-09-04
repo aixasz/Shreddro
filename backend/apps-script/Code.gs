@@ -28,7 +28,7 @@
 
 var SPREADSHEET_ID = 'PASTE_YOUR_SPREADSHEET_ID_HERE';
 
-var HEADERS = ['logged_at', 'bank_name', 'date_time', 'amount', 'sender', 'receiver', 'reference_id'];
+var HEADERS = ['logged_at', 'bank_name', 'date_time', 'amount', 'sender', 'receiver', 'reference_id', 'image_file'];
 
 function doPost(e) {
   var lock = LockService.getScriptLock();
@@ -60,6 +60,7 @@ function doPost(e) {
       slip.sender,
       slip.receiver,
       slip.reference_id,
+      payload.image_file || '',   // Drive file name of the slip image (optional)
     ]);
 
     return jsonResponse_({
