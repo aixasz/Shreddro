@@ -114,7 +114,7 @@ class ShreddroApp : Application() {
         migrateScanState()
         auth = AppAuthManager(this)
         settings = AppSettings(this)
-        storageCoordinator = StorageCoordinator(this)
+        storageCoordinator = StorageCoordinator(this, compressArchive = { settings.compressArchive })
         syncQueueStore = FileSyncQueueStore(this)
         syncQueue = SyncQueue(syncQueueStore, FileArchiveReader())
         registry = ProcessedRegistry(FileProcessedStore(this))

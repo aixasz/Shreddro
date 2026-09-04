@@ -70,10 +70,10 @@ class LocalXlsxLedger(context: Context) {
     private fun sheetXml(records: List<LedgerRecord>): String = buildString {
         append(XML_DECL)
         append("<worksheet xmlns=\"$NS_MAIN\">")
-        append("<cols><col min=\"1\" max=\"${HEADERS.size}\" width=\"22\" customWidth=\"1\"/></cols>")
+        append("<cols><col min=\"1\" max=\"${LedgerColumns.HEADERS.size}\" width=\"22\" customWidth=\"1\"/></cols>")
         append("<sheetData>")
         append("<row r=\"1\">")
-        HEADERS.forEachIndexed { column, header -> textCell(column, 1, header) }
+        LedgerColumns.HEADERS.forEachIndexed { column, header -> textCell(column, 1, header) }
         append("</row>")
         records.forEachIndexed { index, r ->
             val rowNumber = index + 2
@@ -127,10 +127,6 @@ class LocalXlsxLedger(context: Context) {
         const val MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
         /** Same columns, same order, as the cloud ledgers. */
-        val HEADERS = listOf(
-            "logged_at_utc", "bank_name", "date_time", "amount", "sender", "receiver", "reference_id",
-            "image_file",
-        )
 
         private const val XML_DECL = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
         private const val NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"

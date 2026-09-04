@@ -71,8 +71,17 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_COMPRESS_UPLOADS, true)
         set(value) = prefs.edit().putBoolean(KEY_COMPRESS_UPLOADS, value).apply()
 
+    /**
+     * Keep the on-device archive as a ≤1600 px JPEG (default on, the offline
+     * baseline) instead of the byte-exact original. Off = originals are kept.
+     */
+    var compressArchive: Boolean
+        get() = prefs.getBoolean(KEY_COMPRESS_ARCHIVE, true)
+        set(value) = prefs.edit().putBoolean(KEY_COMPRESS_ARCHIVE, value).apply()
+
     private companion object {
         const val KEY_COMPRESS_UPLOADS = "compress_uploads"
+        const val KEY_COMPRESS_ARCHIVE = "compress_archive"
         const val KEY_SHEET_URL = "google_sheet_url"
         const val KEY_DRIVE_URL = "google_drive_folder_url"
         const val KEY_EXCEL_URL = "excel_workbook_url"
