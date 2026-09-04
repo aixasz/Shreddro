@@ -63,7 +63,16 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_ONEDRIVE_URL, null) ?: ""
         set(value) = prefs.edit().putString(KEY_ONEDRIVE_URL, value.trim()).apply()
 
+    /**
+     * Upload downsized JPEG copies to Drive/OneDrive (default on). The local
+     * archive is always the byte-exact original regardless of this flag.
+     */
+    var compressUploads: Boolean
+        get() = prefs.getBoolean(KEY_COMPRESS_UPLOADS, true)
+        set(value) = prefs.edit().putBoolean(KEY_COMPRESS_UPLOADS, value).apply()
+
     private companion object {
+        const val KEY_COMPRESS_UPLOADS = "compress_uploads"
         const val KEY_SHEET_URL = "google_sheet_url"
         const val KEY_DRIVE_URL = "google_drive_folder_url"
         const val KEY_EXCEL_URL = "excel_workbook_url"

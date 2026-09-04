@@ -25,8 +25,8 @@ android {
         applicationId = "com.shreddro.app"
         minSdk = 29 // Android 10 — scoped storage baseline
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.5.0"
 
         // AppAuth redirect scheme (Google). Microsoft uses msauth scheme in manifest.
         manifestPlaceholders["appAuthRedirectScheme"] = "com.shreddro.app"

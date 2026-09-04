@@ -12,6 +12,11 @@ import net.openid.appauth.AuthorizationServiceConfiguration
  * ── Google Cloud Console ─────────────────────────────────────────────────────
  *  1. Create an OAuth client of type "Android"; register package
  *     `com.shreddro.app` + your signing SHA-1.
+ *     THEN open the client → "Advanced Settings" → tick **Enable custom URI
+ *     scheme**. Without it every sign-in ends in "Error 400: invalid_request —
+ *     Custom URI scheme is not enabled for your Android client" (seen on
+ *     device 2026-09-04); AppAuth's loopback/App Links alternatives are not
+ *     used here.
  *  2. Enable the Google Drive API. (Sheets API not required on-device — sheet
  *     writes go through the user's own Apps Script Web App deployment.)
  *  3. Redirect URI: `com.shreddro.app:/oauth2redirect` (custom scheme; the

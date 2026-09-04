@@ -13,6 +13,7 @@ import com.shreddro.app.data.FileReviewStore
 import com.shreddro.app.data.FileSyncQueueStore
 import com.shreddro.app.net.AppsScriptSheetGateway
 import com.shreddro.app.net.Clients
+import com.shreddro.app.net.CompressedUploadGateway
 import com.shreddro.app.net.DriveBinaryGateway
 import com.shreddro.app.net.GraphExcelGateway
 import com.shreddro.app.net.OneDriveBinaryGateway
@@ -146,14 +147,23 @@ class ShreddroApp : Application() {
                 )
             }
         }
+        // Cloud copies go up as downsized JPEGs (toggle in Settings); the local
+        // archive the purge invariant hashes against is never touched.
+        val compressed = { settings.compressUploads }
         binaryGateways = mapOf(
-            CloudProvider.GOOGLE to DriveBinaryGateway(
-                auth, Clients.okHttp,
-                onFolderUrl = { settings.googleDriveFolderUrl = it },
+            CloudProvider.GOOGLE to CompressedUploadGateway(
+                DriveBinaryGateway(
+                    auth, Clients.okHttp,
+                    onFolderUrl = { settings.googleDriveFolderUrl = it },
+                ),
+                compressed,
             ),
-            CloudProvider.MICROSOFT to OneDriveBinaryGateway(
-                Clients.graphApi, auth,
-                onFolderUrl = { settings.oneDriveFolderUrl = it },
+            CloudProvider.MICROSOFT to CompressedUploadGateway(
+                OneDriveBinaryGateway(
+                    Clients.graphApi, auth,
+                    onFolderUrl = { settings.oneDriveFolderUrl = it },
+                ),
+                compressed,
             ),
         )
 
