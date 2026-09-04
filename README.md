@@ -119,7 +119,7 @@ gallery image ─► ML Kit gate (Thai text + bank QR)
 Parsing is fully offline — no AI API, no key, and slip images never leave the
 device (cloud sync of the ledger/binary is optional and user-configured).
 
-Invariant: **an original is never deleted until the transaction row is durably logged locally and the archive copy is hash-verified.**
+Invariant: **an original is never deleted until the transaction row is durably logged locally and the archive copy is hash-verified** (by default the archive is the same downsized 1600 px JPEG the cloud receives; a setting keeps full originals instead).
 
 ## Building
 

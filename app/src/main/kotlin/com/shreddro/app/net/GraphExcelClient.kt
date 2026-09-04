@@ -2,6 +2,7 @@ package com.shreddro.app.net
 
 import android.util.Log
 import com.shreddro.app.auth.AppAuthManager
+import com.shreddro.app.data.LedgerColumns
 import com.shreddro.core.gateway.BinaryStorageGateway
 import com.shreddro.core.gateway.SpreadsheetGateway
 import com.shreddro.core.ledger.CloudLedger
@@ -19,6 +20,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
@@ -75,7 +77,12 @@ interface GraphApi {
         @Body body: GraphAddWorksheetRequest,
     ): Response<Unit>
 
-    @POST("v1.0/me/drive/items/{itemId}/workbook/worksheets/{sheet}/range(address='A1:H1')/values")
+    /**
+     * Writes cell values into a fixed range. Graph exposes range values via
+     * PATCH on the range resource itself — the earlier POST to `…/values`
+     * was not a valid endpoint, which is why workbooks came up header-less.
+     */
+    @PATCH("v1.0/me/drive/items/{itemId}/workbook/worksheets/{sheet}/range(address='A1:H1')")
     suspend fun seedHeaderRow(
         @Header("Authorization") bearer: String,
         @Path("itemId") itemId: String,
@@ -165,6 +172,7 @@ class GraphExcelGateway(
 
     override val provider = CloudProvider.MICROSOFT
     @Volatile private var workbookId: String? = null
+    @Volatile private var headerWritten = false
 
     /**
      * Keys of every row in the "Slips" table. An empty set when the table has
@@ -271,15 +279,26 @@ class GraphExcelGateway(
 
     private suspend fun ensureTable(bearer: String, itemId: String) {
         val existing = api.getTable(bearer, itemId, TABLE)
-        if (existing.isSuccessful) return
+        if (existing.isSuccessful) {
+            // Table already there: still (re)write the header once per
+            // process so workbooks created by older builds (header-less or
+            // snake_case column names) get readable names. Editing the
+            // header cells renames the table columns in place.
+            if (!headerWritten) {
+                val header = api.seedHeaderRow(bearer, itemId, SHEET, GraphRangeValuesRequest(listOf(LedgerColumns.HEADERS)))
+                if (header.isSuccessful) headerWritten = true else Log.w(TAG, "Excel: header rewrite failed HTTP ${header.code()}")
+            }
+            return
+        }
         if (existing.code() != 404) throw HttpException(existing)
 
         // The template already carries a "Slips" sheet — 409 here is expected.
         val ws = api.addWorksheet(bearer, itemId, GraphAddWorksheetRequest(SHEET))
         if (!ws.isSuccessful && ws.code() != 409) throw HttpException(ws)
 
-        val header = api.seedHeaderRow(bearer, itemId, SHEET, GraphRangeValuesRequest(listOf(HEADERS)))
+        val header = api.seedHeaderRow(bearer, itemId, SHEET, GraphRangeValuesRequest(listOf(LedgerColumns.HEADERS)))
         if (!header.isSuccessful) throw HttpException(header)
+        headerWritten = true
 
         val created = api.addTable(bearer, itemId, GraphAddTableRequest(address = "$SHEET!A1:H1"))
         if (!created.isSuccessful && created.code() != 409) throw HttpException(created)
@@ -290,10 +309,6 @@ class GraphExcelGateway(
         const val WORKBOOK_NAME = "Shreddro Transactions.xlsx"
         const val SHEET = "Slips"
         const val TABLE = "Slips"
-        val HEADERS = listOf(
-            "logged_at_utc", "bank_name", "date_time", "amount", "sender", "receiver", "reference_id",
-            "image_file",
-        )
         val XLSX_MEDIA =
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".toMediaType()
     }

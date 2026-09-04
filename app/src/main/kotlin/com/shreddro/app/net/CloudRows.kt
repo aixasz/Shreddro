@@ -8,7 +8,7 @@ import kotlinx.serialization.json.JsonPrimitive
 /**
  * Maps a row read back from a cloud ledger (Sheets `values` / Graph table
  * `values`) to a [LedgerRecord]. Column order is the shared A..H layout:
- * logged_at_utc, bank_name, date_time, amount, sender, receiver,
+ * (by position — see data/LedgerColumns for the readable names) logged_at_utc, bank_name, date_time, amount, sender, receiver,
  * reference_id, image_file. Missing trailing cells read as "".
  */
 internal object CloudRows {

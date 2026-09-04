@@ -12,6 +12,8 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
+import com.shreddro.app.ocr.ImageDecoding
+import com.shreddro.app.ocr.SlipImageCompressor
 import com.shreddro.core.gateway.MediaVault
 import com.shreddro.core.gateway.SlipCandidate
 import kotlinx.coroutines.CompletableDeferred
@@ -28,10 +30,12 @@ import java.time.format.DateTimeFormatter
  * The "Gallery Sweeper" — implements [MediaVault] for Android 10 (API 29) → 15+.
  *
  * Atomic routine per slip:
- *   1. Copy the original's bytes into the app-scoped archive
+ *   1. Copy the slip into the app-scoped archive — by default as the same
+ *      ≤1600 px JPEG the cloud gets (offline baseline: ~10× smaller, fully
+ *      legible); the exact original when "Compress archive copies" is off —
  *      (`<externalFilesDir>/BankSlips_Archive/{bank}/{yyyy-MM}/`), via a temp
  *      file + fsync + rename so a crash never leaves a half-written archive.
- *   2. Verify integrity (size + SHA-256 against the source candidate).
+ *   2. Verify integrity (size + SHA-256 of what was written; JPEG must decode).
  *   3. Ensure `.nomedia` exists at the archive root. (App-scoped external dirs
  *      are already excluded from MediaStore scanning; the marker is
  *      defense-in-depth and keeps the guarantee if the archive is ever
@@ -47,6 +51,14 @@ import java.time.format.DateTimeFormatter
  */
 class StorageCoordinator(
     private val context: Context,
+    /**
+     * When true (the offline baseline), the archive keeps a ≤1600 px JPEG
+     * produced by [SlipImageCompressor] instead of the byte-exact original —
+     * ~10× smaller for PNG screenshots, still fully legible. The bytes that
+     * are written are hash-verified and decode-checked before the original
+     * may be purged (see [archive]).
+     */
+    private val compressArchive: () -> Boolean = { true },
 ) : MediaVault {
 
     private val resolver: ContentResolver get() = context.contentResolver
@@ -76,16 +88,31 @@ class StorageCoordinator(
             val destDir = File(archiveRoot, "$bankKey/$monthDir").apply { mkdirs() }
             ensureNoMedia()
 
-            val dest = uniqueFile(destDir, candidate.displayName)
+            // Decide WHAT to keep: the downsized JPEG (baseline) or the exact
+            // original (setting off, or the image cannot be decoded — never
+            // lose a slip to an optimisation).
+            val compressed = if (compressArchive()) {
+                SlipImageCompressor.toJpeg(candidate.bytes, candidate.displayName)
+            } else null
+            val payload = compressed ?: candidate.bytes
+            val name = if (compressed != null) SlipImageCompressor.jpegName(candidate.displayName) else candidate.displayName
+
+            val dest = uniqueFile(destDir, name)
             val tmp = File(destDir, "${dest.name}.tmp")
             try {
                 FileOutputStream(tmp).use { out ->
-                    out.write(candidate.bytes)
+                    out.write(payload)
                     out.fd.sync() // durable before rename
                 }
                 if (!tmp.renameTo(dest)) throw IOException("rename failed: ${dest.path}")
 
-                verifyIntegrity(dest, candidate)
+                // Purge-safety: what is on disk must be exactly what we
+                // produced, AND still decode as an image, before the gallery
+                // original may go.
+                verifyIntegrity(dest, payload, expectedSha256 = if (compressed == null) candidate.sha256 else null)
+                if (compressed != null && ImageDecoding.decodeScaled(dest.readBytes(), 256) == null) {
+                    throw IOException("Archived JPEG does not decode: ${dest.name}")
+                }
                 dest.absolutePath
             } catch (e: Exception) {
                 tmp.delete()
@@ -103,10 +130,17 @@ class StorageCoordinator(
         }
     }
 
-    private fun verifyIntegrity(dest: File, candidate: SlipCandidate) {
-        if (dest.length() != candidate.bytes.size.toLong()) {
+    /**
+     * Size + SHA-256 of the file on disk against the bytes we intended to
+     * write. [expectedSha256] short-circuits the in-memory hash when the
+     * caller already knows it (the candidate's own digest for uncompressed
+     * archives).
+     */
+    private fun verifyIntegrity(dest: File, written: ByteArray, expectedSha256: String?) {
+        if (dest.length() != written.size.toLong()) {
             throw IOException("Archive size mismatch for ${dest.name}")
         }
+        val expected = expectedSha256 ?: sha256Hex(written)
         val digest = MessageDigest.getInstance("SHA-256")
         dest.inputStream().use { input ->
             val buf = ByteArray(64 * 1024)
@@ -117,10 +151,13 @@ class StorageCoordinator(
             }
         }
         val hex = digest.digest().joinToString("") { "%02x".format(it) }
-        if (!hex.equals(candidate.sha256, ignoreCase = true)) {
+        if (!hex.equals(expected, ignoreCase = true)) {
             throw IOException("Archive hash mismatch for ${dest.name}")
         }
     }
+
+    private fun sha256Hex(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
     private fun uniqueFile(dir: File, name: String): File {
         var f = File(dir, name)

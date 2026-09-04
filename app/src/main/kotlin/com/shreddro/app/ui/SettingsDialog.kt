@@ -34,6 +34,7 @@ fun SettingsDialog(
     var scriptUrl by remember { mutableStateOf(settings.appsScriptUrl) }
     var scriptSecret by remember { mutableStateOf(settings.appsScriptSecret) }
     var compress by remember { mutableStateOf(settings.compressUploads) }
+    var compressArchive by remember { mutableStateOf(settings.compressArchive) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -79,6 +80,25 @@ fun SettingsDialog(
                     }
                     Switch(checked = compress, onCheckedChange = { compress = it })
                 }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "Compress archive on this phone",
+                            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            "Keeps the same 1600 px JPEG in the on-device archive instead of " +
+                                "the full-size original. Turn off to keep originals.",
+                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Switch(checked = compressArchive, onCheckedChange = { compressArchive = it })
+                }
                 HorizontalDivider(Modifier.padding(vertical = 12.dp))
                 Text(
                     "Gallery scan",
@@ -98,6 +118,7 @@ fun SettingsDialog(
                 settings.appsScriptUrl = scriptUrl
                 settings.appsScriptSecret = scriptSecret
                 settings.compressUploads = compress
+                settings.compressArchive = compressArchive
                 onSaved()
             }) { Text("Save") }
         },
