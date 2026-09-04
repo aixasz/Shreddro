@@ -2,6 +2,7 @@ package com.shreddro.app.net
 
 import android.util.Log
 import com.shreddro.app.auth.AppAuthManager
+import com.shreddro.app.data.LedgerColumns
 import com.shreddro.core.gateway.SpreadsheetGateway
 import com.shreddro.core.ledger.CloudLedger
 import com.shreddro.core.ledger.LedgerRecord
@@ -128,7 +129,8 @@ class GoogleSheetsGateway(
         val id = files.findByName(token, SHEET_NAME, root, GoogleDriveFiles.SHEET_MIME)
             ?: files.createMetadata(token, SHEET_NAME, root, GoogleDriveFiles.SHEET_MIME)
                 .also { Log.d(TAG, "Sheets: created $SHEET_NAME") }
-        if (headerCell(token, id).isNullOrBlank()) seedHeader(token, id)
+        // Missing OR old snake_case header → (re)write row 1 with readable names.
+        if (headerCell(token, id) != LedgerColumns.FIRST) seedHeader(token, id)
         sheetId = id
         onSheetUrl("https://docs.google.com/spreadsheets/d/$id")
         return id
@@ -147,7 +149,7 @@ class GoogleSheetsGateway(
 
     private fun seedHeader(token: String, sheetId: String) {
         val body = buildJsonObject {
-            put("values", buildJsonArray { add(buildJsonArray { HEADERS.forEach { add(JsonPrimitive(it)) } }) })
+            put("values", buildJsonArray { add(buildJsonArray { LedgerColumns.HEADERS.forEach { add(JsonPrimitive(it)) } }) })
         }.toString()
         client.newCall(
             Request.Builder()
@@ -162,9 +164,5 @@ class GoogleSheetsGateway(
     private companion object {
         const val TAG = "Shreddro.Upload"
         const val SHEET_NAME = "Shreddro Transactions"
-        val HEADERS = listOf(
-            "logged_at_utc", "bank_name", "date_time", "amount", "sender", "receiver", "reference_id",
-            "image_file",
-        )
     }
 }

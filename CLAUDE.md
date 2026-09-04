@@ -28,7 +28,11 @@ feature/* ──merge──► dev ──cut──► release/vX.Y.Z ──CI─
   No cloud LLM / AI API may be reintroduced without the owner's explicit ask.
 - **Purge safety invariant:** a gallery original is deleted only after the
   transaction row is durably logged locally AND the archive copy is
-  hash-verified. Cloud sync failures must never block or trigger deletion.
+  hash-verified against the bytes the app wrote (and decode-checked when it
+  is the downsized JPEG). Since v0.7.0 the archive keeps the same ≤1600 px
+  JPEG the cloud gets by default (owner's call: offline baseline must be
+  small); "Compress archive on this phone" off keeps byte-exact originals.
+  Cloud sync failures must never block or trigger deletion.
 - **Offline-first:** the local CSV ledger is the source of truth; cloud ops
   queue durably and drain in the background when connectivity returns.
 - **No secrets in the APK or repo.** OAuth client ids live in

@@ -28,7 +28,7 @@
 
 var SPREADSHEET_ID = 'PASTE_YOUR_SPREADSHEET_ID_HERE';
 
-var HEADERS = ['logged_at', 'bank_name', 'date_time', 'amount', 'sender', 'receiver', 'reference_id', 'image_file'];
+var HEADERS = ['Logged at', 'Bank', 'Date/time', 'Amount (THB)', 'Sender', 'Receiver', 'Reference', 'Image file'];
 
 function doPost(e) {
   var lock = LockService.getScriptLock();
