@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider roots for sharing the local Excel ledger
+     (LocalXlsxLedger): getExternalFilesDir(DIRECTORY_DOCUMENTS), plus the
+     internal Documents/ fallback used when external storage is unavailable. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-files-path name="documents" path="Documents/" />
+    <files-path name="internal_documents" path="Documents/" />
+</paths>

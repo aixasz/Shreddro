@@ -106,7 +106,7 @@ class GoldenSlipSamplesTest {
     fun `satang amounts survive to csv without locale drift`() {
         val slip = SlipJsonParser.parse(ktbWaterBill)
         assertEquals(115.79, slip.amount)
-        val line = CsvFormatter.toLine(slip, "m", "2026-08-30T06:44:00Z")
+        val line = CsvFormatter.toLine(slip, "m", "water.jpg", "2026-08-30T06:44:00Z")
         assertTrue("115.79" in line)
     }
 
@@ -128,7 +128,7 @@ class GoldenSlipSamplesTest {
     @Test
     fun `thai names with parentheses and commas stay intact through csv`() {
         val slip = SlipJsonParser.parse(kbankFellow)
-        val line = CsvFormatter.toLine(slip, "media-9", "2026-08-30T04:12:00Z")
+        val line = CsvFormatter.toLine(slip, "media-9", "fellow.jpg", "2026-08-30T04:12:00Z")
         assertTrue("fellow and friends (น.ส. ธัญชนก อินทร์ใจเอื้อ)" in line)
     }
 

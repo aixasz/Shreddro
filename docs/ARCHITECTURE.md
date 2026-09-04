@@ -71,7 +71,7 @@ PURGED
 | Protocol | OIDC + OAuth2, auth-code + PKCE (AppAuth) | OIDC + OAuth2, auth-code + PKCE (MSAL or AppAuth) |
 | Scopes | `openid email profile`, `https://www.googleapis.com/auth/drive.file` | `openid profile offline_access User.Read Files.ReadWrite` |
 | Redirect | `com.shreddro.app:/oauth2redirect` (custom scheme) | `msauth://com.shreddro.app/<base64-sig-hash>` |
-| Sheets access | Not direct — via user-deployed Apps Script Web App (script runs as the sheet owner) | Direct Graph workbook API with the same token as Files.ReadWrite |
+| Ledger access | Direct Sheets API on the central `Shreddro/Shreddro Transactions` (created by the app on link, so `drive.file` suffices); user-deployed Apps Script master sheet remains an opt-in legacy mode | Direct Graph workbook API on `Shreddro/Shreddro Transactions.xlsx`, created from a bundled empty workbook on link |
 | Token storage | `EncryptedSharedPreferences` (AES-256, Keystore master key), per-provider namespaces | same |
 
 Both providers can be linked simultaneously; `TransactionRepository` fans out to every *linked & enabled* target plus the mandatory local sink.
@@ -94,9 +94,9 @@ enum class CloudProvider { GOOGLE, MICROSOFT, LOCAL_CSV }
 - **Purge:** API 30+ `MediaStore.createDeleteRequest(resolver, uris)` → `IntentSenderRequest` → one system dialog for the whole batch. API 29: per-item `delete()` catching `RecoverableSecurityException`.
 - **Atomicity:** copy → fsync → hash-verify → only then purge request. Temp file + rename for crash safety.
 
-## 6. Backend: Apps Script Gateway
+## 6. Backend: Apps Script Gateway (optional, legacy)
 
-Single `doPost(e)` Web App (execute-as: owner, access: anyone-with-link + shared-secret header check). Responsibilities: tab-per-bank creation, header bootstrap, `appendRow`, `LockService` for concurrent posts, JSON envelope response. Deployed by the *user* on their own account → their quota, their data.
+Not required since v0.6.0 — the app writes per-bank spreadsheets directly. Kept for users who prefer one master sheet they own end-to-end. Single `doPost(e)` Web App (execute-as: owner, access: anyone-with-link + shared-secret header check). Responsibilities: tab-per-bank creation, header bootstrap, `appendRow`, `LockService` for concurrent posts, JSON envelope response. Deployed by the *user* on their own account → their quota, their data.
 
 ## 7. Module / Package Map
 

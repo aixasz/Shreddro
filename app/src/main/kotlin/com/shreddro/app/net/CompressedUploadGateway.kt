@@ -29,13 +29,30 @@ class CompressedUploadGateway(
 
     override val provider: CloudProvider get() = delegate.provider
 
+    /**
+     * The cloud name is decided by the setting alone — never by whether the
+     * re-encode happened to be smaller — so a spreadsheet row written before
+     * or without the upload cites exactly the file that will exist.
+     */
+    override fun cloudFileName(originalName: String): String =
+        if (enabled()) originalName.substringBeforeLast('.', originalName) + ".jpg" else originalName
+
     override suspend fun upload(bytes: ByteArray, fileName: String, bankKey: String) {
         if (!enabled()) return delegate.upload(bytes, fileName, bankKey)
-        val (outBytes, outName) = compress(bytes, fileName) ?: (bytes to fileName)
-        delegate.upload(outBytes, outName, bankKey)
+        val target = cloudFileName(fileName)
+        val jpegBytes = compress(bytes, fileName)
+            ?: if (isJpeg(fileName)) bytes else null // already JPEG: keep the bytes, only the name changes
+        if (jpegBytes == null) {
+            // Undecodable image: upload untouched under its ORIGINAL name so
+            // nothing is lost; the row's image_file may then differ — logged.
+            Log.w(TAG, "$fileName: could not decode; uploading original bytes as-is")
+            return delegate.upload(bytes, fileName, bankKey)
+        }
+        delegate.upload(jpegBytes, target, bankKey)
     }
 
-    internal fun compress(bytes: ByteArray, fileName: String): Pair<ByteArray, String>? {
+    /** JPEG re-encode when it saves space; null when the original JPEG already wins or cannot decode. */
+    internal fun compress(bytes: ByteArray, fileName: String): ByteArray? {
         val bitmap = ImageDecoding.decodeScaled(bytes, MAX_SIDE_PX) ?: return null
         try {
             val scaled = fitLongSide(bitmap, MAX_SIDE_PX)
@@ -43,17 +60,19 @@ class CompressedUploadGateway(
             scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
             if (scaled !== bitmap) scaled.recycle()
             val jpeg = out.toByteArray()
-            if (jpeg.size >= bytes.size) {
-                Log.d(TAG, "$fileName: kept original (${bytes.size} B ≤ ${jpeg.size} B)")
+            if (jpeg.size >= bytes.size && isJpeg(fileName)) {
+                Log.d(TAG, "$fileName: kept original JPEG (${bytes.size} B <= ${jpeg.size} B)")
                 return null
             }
-            val newName = fileName.substringBeforeLast('.', fileName) + ".jpg"
-            Log.d(TAG, "$fileName -> $newName: ${bytes.size} B -> ${jpeg.size} B (${scaled.width}x${scaled.height})")
-            return jpeg to newName
+            Log.d(TAG, "$fileName -> ${cloudFileName(fileName)}: ${bytes.size} B -> ${jpeg.size} B (${scaled.width}x${scaled.height})")
+            return jpeg
         } finally {
             bitmap.recycle()
         }
     }
+
+    private fun isJpeg(name: String) =
+        name.substringAfterLast('.', "").lowercase() in setOf("jpg", "jpeg")
 
     /** decodeScaled only halves by powers of two; finish with an exact resize. */
     private fun fitLongSide(src: Bitmap, maxSide: Int): Bitmap {

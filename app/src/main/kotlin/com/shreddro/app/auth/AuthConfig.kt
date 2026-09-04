@@ -17,8 +17,11 @@ import net.openid.appauth.AuthorizationServiceConfiguration
  *     Custom URI scheme is not enabled for your Android client" (seen on
  *     device 2026-09-04); AppAuth's loopback/App Links alternatives are not
  *     used here.
- *  2. Enable the Google Drive API. (Sheets API not required on-device — sheet
- *     writes go through the user's own Apps Script Web App deployment.)
+ *  2. Enable BOTH the Google Drive API and the Google Sheets API. The app
+ *     creates the `Shreddro/Shreddro Transactions` sheet itself and appends
+ *     rows via the Sheets API using the same drive.file token (Sheets accepts
+ *     drive.file for spreadsheets the app created). The Apps Script route is
+ *     only used when a deployment URL is entered in Settings.
  *  3. Redirect URI: `com.shreddro.app:/oauth2redirect` (custom scheme; the
  *     scheme is set in build.gradle manifestPlaceholders).
  *  4. OAuth consent screen scopes: openid, email, profile, drive.file.

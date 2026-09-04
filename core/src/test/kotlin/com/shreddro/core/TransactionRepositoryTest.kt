@@ -22,16 +22,16 @@ class TransactionRepositoryTest {
     private val candidate = SlipCandidate("content://media/1", "slip.jpg", "abc123", byteArrayOf(1))
 
     private class FakeLedger(var fail: Boolean = false) : LedgerSink {
-        val rows = mutableListOf<Pair<TransactionSlip, String>>()
-        override suspend fun append(slip: TransactionSlip, sourceMediaId: String) {
+        val rows = mutableListOf<Triple<TransactionSlip, String, String>>()
+        override suspend fun append(slip: TransactionSlip, sourceMediaId: String, imageFileName: String) {
             if (fail) error("disk full")
-            rows += slip to sourceMediaId
+            rows += Triple(slip, sourceMediaId, imageFileName)
         }
     }
 
     private class FakeSheet(override val provider: CloudProvider, var fail: Boolean = false) : SpreadsheetGateway {
         var appended = 0
-        override suspend fun appendRow(slip: TransactionSlip) {
+        override suspend fun appendRow(slip: TransactionSlip, imageFileName: String) {
             if (fail) error("http 500")
             appended++
         }
@@ -63,6 +63,8 @@ class TransactionRepositoryTest {
         val result = repo.record(slip, candidate)
 
         assertEquals(1, ledger.rows.size)
+        assertEquals(candidate.mediaId, ledger.rows.single().second)
+        assertEquals(candidate.displayName, ledger.rows.single().third)
         assertEquals(1, gSheet.appended)
         assertEquals(1, mSheet.appended)
         assertEquals(1, gBin.uploads)

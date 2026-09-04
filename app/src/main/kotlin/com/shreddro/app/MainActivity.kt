@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -19,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.shreddro.app.data.LedgerEntry
 import com.shreddro.app.data.LedgerReader
+import com.shreddro.app.data.LocalXlsxLedger
 import com.shreddro.app.data.PendingPurge
 import com.shreddro.app.storage.StorageCoordinator
 import com.shreddro.app.ui.AccountScreen
@@ -67,6 +69,9 @@ class MainActivity : ComponentActivity() {
             lifecycleScope.launch {
                 runCatching { app.auth.handleAuthorizationResponse(CloudProvider.GOOGLE, data) }
                 refreshTick++
+                app.provisionCloud(listOf(CloudProvider.GOOGLE))
+                app.reconcileCloud(listOf(CloudProvider.GOOGLE))
+                refreshTick++
             }
         }
     }
@@ -78,6 +83,9 @@ class MainActivity : ComponentActivity() {
             lifecycleScope.launch {
                 runCatching { app.auth.handleAuthorizationResponse(CloudProvider.MICROSOFT, data) }
                 refreshTick++
+                app.provisionCloud(listOf(CloudProvider.MICROSOFT))
+                app.reconcileCloud(listOf(CloudProvider.MICROSOFT))
+                refreshTick++
             }
         }
     }
@@ -87,10 +95,25 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // System bars follow the app's light/dark palette instead of staying
+        // white over a dark surface; Scaffold already pads for insets.
+        enableEdgeToEdge()
         coordinator.bindLauncher(purgeConsentLauncher)
         requestMediaPermissions()
 
         val ledgerReader = LedgerReader(app.csvSink.ledgerFile())
+
+        // Linked accounts get their folders/sheets verified on every launch
+        // (cheap find-by-name calls) so a bank added offline shows up in the
+        // cloud before its first synced slip, then any rows the cloud is
+        // missing are pushed. Without a linked account the local .xlsx
+        // mirror is brought up to date with the CSV instead.
+        lifecycleScope.launch {
+            app.provisionCloud()
+            app.reconcileCloud()
+            app.refreshLocalLedgerIfUnlinked()
+            refreshTick++
+        }
 
         setContent {
             ShreddroTheme {
@@ -148,7 +171,11 @@ class MainActivity : ComponentActivity() {
                                 },
                             )
 
-                            Tab.LEDGER -> LedgerScreen(ledger)
+                            Tab.LEDGER -> LedgerScreen(
+                                entries = ledger,
+                                linked = linked,
+                                onOpenLocalLedger = ::openLocalLedger,
+                            )
 
                             Tab.REVIEW -> ReviewScreen(
                                 items = reviewItems,
@@ -280,6 +307,9 @@ class MainActivity : ComponentActivity() {
 
         app.advanceScanWatermark(images)
         drainIfPending()
+        // Best-effort: rows just logged reach every linked cloud even if one
+        // direct sync failed (failures are logged inside, never thrown).
+        app.reconcileCloud()
 
         return ScanSummary(
             scanned = images.size,
@@ -351,14 +381,71 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * ACTION_VIEW deep-links into the matching app when installed (Sheets,
-     * Drive, Excel, OneDrive) and falls back to the browser otherwise.
+     * Opens a cloud link in its native app when installed — Google Sheets /
+     * Drive, Excel (via the `ms-excel:ofe|u|` scheme), OneDrive — and falls
+     * back to a plain ACTION_VIEW, which lands in the browser. Package names
+     * must be declared in the manifest `<queries>` for resolveActivity to see
+     * them on Android 11+.
      */
     private fun openUrl(url: String) {
-        runCatching {
-            startActivity(
-                android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)),
+        val uri = android.net.Uri.parse(url)
+        val candidates = buildList {
+            when {
+                url.contains("docs.google.com/spreadsheets") ->
+                    add(viewIntent(uri).setPackage("com.google.android.apps.docs.editors.sheets"))
+                url.contains("drive.google.com") ->
+                    add(viewIntent(uri).setPackage("com.google.android.apps.docs"))
+                url.contains("1drv.ms") || url.contains("onedrive.live.com") ||
+                    url.contains("sharepoint.com") || url.contains("my.microsoftpersonalcontent.com") -> {
+                    if (url.contains(".xlsx", ignoreCase = true) || url.contains("/edit")) {
+                        add(viewIntent(android.net.Uri.parse("ms-excel:ofe|u|$url")))
+                    }
+                    add(viewIntent(uri).setPackage("com.microsoft.skydrive"))
+                }
+            }
+            add(viewIntent(uri))
+        }
+        for (intent in candidates) {
+            if (intent.resolveActivity(packageManager) == null) continue
+            if (runCatching { startActivity(intent) }.isSuccess) return
+        }
+    }
+
+    private fun viewIntent(uri: android.net.Uri) =
+        android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+
+    /**
+     * Opens `Documents/Shreddro Transactions.xlsx` (the ledger a user without a
+     * cloud account gets) in whatever spreadsheet viewer is installed, via the
+     * FileProvider; when nothing can VIEW an .xlsx, falls back to a share
+     * chooser (ACTION_SEND) so the file can still leave the phone.
+     */
+    private fun openLocalLedger() {
+        lifecycleScope.launch {
+            val file = app.localXlsx.file
+            if (!file.exists()) app.refreshLocalLedger()
+            if (!file.exists()) {
+                android.widget.Toast.makeText(
+                    this@MainActivity, "Couldn't write the Excel file.", android.widget.Toast.LENGTH_LONG,
+                ).show()
+                return@launch
+            }
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                this@MainActivity, "$packageName.files", file,
             )
+            val view = android.content.Intent(android.content.Intent.ACTION_VIEW)
+                .setDataAndType(uri, LocalXlsxLedger.MIME)
+                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            if (view.resolveActivity(packageManager) != null && runCatching { startActivity(view) }.isSuccess) {
+                return@launch
+            }
+            val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+                .setType(LocalXlsxLedger.MIME)
+                .putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            runCatching { startActivity(android.content.Intent.createChooser(send, LocalXlsxLedger.FILE_NAME)) }
+                .onFailure { Log.w(TAG, "no app can open or share the local ledger", it) }
         }
     }
 

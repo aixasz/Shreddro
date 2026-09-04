@@ -18,12 +18,18 @@ class CsvFormatterTest {
 
     @Test
     fun `escapes commas and quotes per rfc4180`() {
-        val line = CsvFormatter.toLine(slip, "media-1", "2026-09-03T08:00:00Z")
+        val line = CsvFormatter.toLine(slip, "media-1", "slip, \"one\".jpg", "2026-09-03T08:00:00Z")
         assertEquals(
             "2026-09-03T08:00:00Z,\"Krungthai, NEXT\",2026-09-03 14:22,1234.50," +
-                "\"สมชาย \"\"ชาย\"\" ใจดี\",SOMSRI,REF123,media-1",
+                "\"สมชาย \"\"ชาย\"\" ใจดี\",SOMSRI,REF123,media-1,\"slip, \"\"one\"\".jpg\"",
             line,
         )
+    }
+
+    @Test
+    fun `image file is the last column`() {
+        val line = CsvFormatter.toLine(slip, "media-1", "IMG_0001.jpg", "2026-09-03T08:00:00Z")
+        assertEquals("IMG_0001.jpg", line.substringAfterLast(','))
     }
 
     @Test
@@ -37,7 +43,7 @@ class CsvFormatterTest {
     @Test
     fun `header matches column order`() {
         assertEquals(
-            "logged_at_utc,bank_name,date_time,amount,sender,receiver,reference_id,source_media_id",
+            "logged_at_utc,bank_name,date_time,amount,sender,receiver,reference_id,source_media_id,image_file",
             CsvFormatter.headerLine(),
         )
     }
