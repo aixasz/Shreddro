@@ -70,6 +70,14 @@ interface GraphApi {
         @Header("Authorization") bearer: String,
     ): Response<GraphTableRowsResponse>
 
+    /** 200 when the worksheet exists, 404 otherwise. */
+    @GET("v1.0/me/drive/items/{itemId}/workbook/worksheets/{sheet}")
+    suspend fun getWorksheet(
+        @Header("Authorization") bearer: String,
+        @Path("itemId") itemId: String,
+        @Path("sheet") sheet: String,
+    ): Response<Unit>
+
     @POST("v1.0/me/drive/items/{itemId}/workbook/worksheets")
     suspend fun addWorksheet(
         @Header("Authorization") bearer: String,
@@ -124,11 +132,18 @@ interface GraphApi {
 @Serializable data class GraphAddWorksheetRequest(val name: String)
 @Serializable data class GraphRangeValuesRequest(val values: List<List<String>>)
 @Serializable data class GraphAddTableRequest(val address: String, val hasHeaders: Boolean = true)
+/**
+ * No default values on purpose: the shared Json is configured with
+ * encodeDefaults = false, which silently dropped the `folder` facet and the
+ * conflict behaviour from the body — Graph then rejected the request (400).
+ */
 @Serializable data class GraphCreateFolderRequest(
     val name: String,
-    val folder: Map<String, String> = emptyMap(),
-    @kotlinx.serialization.SerialName("@microsoft.graph.conflictBehavior") val conflictBehavior: String = "fail",
-)
+    val folder: Map<String, String>,
+    @kotlinx.serialization.SerialName("@microsoft.graph.conflictBehavior") val conflictBehavior: String,
+) {
+    constructor(name: String) : this(name, emptyMap(), "fail")
+}
 
 /** Path helpers shared by the OneDrive image and Excel gateways. */
 internal object OneDrivePaths {
@@ -292,9 +307,16 @@ class GraphExcelGateway(
         }
         if (existing.code() != 404) throw HttpException(existing)
 
-        // The template already carries a "Slips" sheet — 409 here is expected.
-        val ws = api.addWorksheet(bearer, itemId, GraphAddWorksheetRequest(SHEET))
-        if (!ws.isSuccessful && ws.code() != 409) throw HttpException(ws)
+        // The template already carries a "Slips" sheet; Graph answers 400
+        // (not 409) to a duplicate add, so check first and only add when
+        // the workbook really lacks it (e.g. a user-supplied file).
+        val sheet = api.getWorksheet(bearer, itemId, SHEET)
+        if (sheet.code() == 404) {
+            val ws = api.addWorksheet(bearer, itemId, GraphAddWorksheetRequest(SHEET))
+            if (!ws.isSuccessful) throw HttpException(ws)
+        } else if (!sheet.isSuccessful) {
+            throw HttpException(sheet)
+        }
 
         val header = api.seedHeaderRow(bearer, itemId, SHEET, GraphRangeValuesRequest(listOf(LedgerColumns.HEADERS)))
         if (!header.isSuccessful) throw HttpException(header)
